@@ -30,13 +30,9 @@ if (!$entry) {
 }
 $page_title = '図鑑: ' . htmlspecialchars($entry['pokedex_name']);
 
-// === 2. 関連する「育成ウマ娘（charactersテーブル）」を取得 ===
+// === 2. 関連する「育成ウマ娘」を取得 ===
 $related_characters = [];
-$stmt_chars = $conn->prepare("
-    SELECT id, character_name, rarity, image_url_suit 
-    FROM characters 
-    WHERE pokedex_id = ?
-");
+$stmt_chars = $conn->prepare("SELECT id, character_name, rarity, image_url_suit FROM characters WHERE pokedex_id = ?");
 $stmt_chars->bind_param("i", $id);
 $stmt_chars->execute();
 $result_chars = $stmt_chars->get_result();
@@ -45,15 +41,9 @@ while($row = $result_chars->fetch_assoc()) {
 }
 $stmt_chars->close();
 
-// === 3. 関連する「サポートカード」を取得 ===
+// ▼▼▼【ここを修正】関連サポートカードの取得方法を直接参照に変更 ▼▼▼
 $related_support_cards = [];
-$stmt_cards = $conn->prepare("
-    SELECT DISTINCT sc.id, sc.card_name, sc.image_url
-    FROM support_cards sc
-    JOIN character_support_card_relation r ON sc.id = r.support_card_id
-    JOIN characters c ON r.character_id = c.id
-    WHERE c.pokedex_id = ?
-");
+$stmt_cards = $conn->prepare("SELECT id, card_name, image_url FROM support_cards WHERE pokedex_id = ?");
 $stmt_cards->bind_param("i", $id);
 $stmt_cards->execute();
 $result_cards = $stmt_cards->get_result();
@@ -61,55 +51,21 @@ while($row = $result_cards->fetch_assoc()) {
     $related_support_cards[] = $row;
 }
 $stmt_cards->close();
+// ▲▲▲【修正ここまで】▲▲▲
+
 $conn->close();
 
 include '../templates/header.php';
 ?>
 <style>
-    /* サイドバー自体の幅を固定し、縮まないように設定 */
-    .related-info-sidebar {
-        width: 280px;       /* サイドバーの幅を280pxに固定 */
-        flex-shrink: 0;     /* これ以上縮まないようにする設定 */
-    }
-    .related-info-sidebar .related-item-list {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-        gap: 12px;
-    }
-    .related-info-sidebar .related-item {
-        text-decoration: none;
-        color: #333;
-        text-align: center;
-        display: block;
-    }
-    .related-info-sidebar .related-item img {
-        width: 100%;
-        height: auto;
-        aspect-ratio: 5 / 7;
-        object-fit: cover;
-        border-radius: 4px;
-        border: 1px solid #ddd;
-        background-color: #fff;
-    }
-    .related-info-sidebar .related-item span {
-        font-size: 12px;
-        display: block;
-        margin-top: 5px;
-        line-height: 1.2;
-    }
-    .related-info-sidebar .related-item-no-image {
-        width: 100%;
-        aspect-ratio: 5 / 7;
-        background-color: #f0f0f0;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 11px;
-        color: #888;
-    }
+    .related-info-sidebar { width: 280px; flex-shrink: 0; }
+    .related-info-sidebar .related-item-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 12px; }
+    .related-info-sidebar .related-item { text-decoration: none; color: #333; text-align: center; display: block; }
+    .related-info-sidebar .related-item img { width: 100%; height: auto; aspect-ratio: 5 / 7; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; background-color: #fff; }
+    .related-info-sidebar .related-item span { font-size: 12px; display: block; margin-top: 5px; line-height: 1.2; }
+    .related-info-sidebar .related-item-no-image { width: 100%; aspect-ratio: 5 / 7; background-color: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #888; }
 </style>
+
 <div class="page-wrapper-with-sidebar">
     <div class="container main-content-area">
         <div class="pokedex-view-header">

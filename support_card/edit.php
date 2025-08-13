@@ -3,167 +3,128 @@
 $page_title = 'サポートカード編集';
 $current_page = 'support_card';
 $base_path = '../';
+$error_message = '';
 
-// ========== データベース接続設定 ==========
+// ========== DB接続設定 ==========
 $db_host = 'localhost'; 
 $db_user = 'root'; 
 $db_pass = ''; 
 $db_name = 'umamusume_db';
 
-// ========== 変数の初期化 ==========
-$error_message = ''; 
-$card = null; 
-$effects = []; 
-$all_skills = []; 
-$current_skill_ids = [];
-
-// ========== データベース接続 ==========
 $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
-if ($conn->connect_error) { 
-    die("DB接続失敗: " . $conn->connect_error); 
-}
+if ($conn->connect_error) { die("DB接続失敗: " . $conn->connect_error); }
 $conn->set_charset("utf8mb4");
 
-// =================================================================
-// POSTリクエスト（フォームが送信された）の場合の処理
-// =================================================================
+// ▼▼▼【追記】フォームで使う選択肢用のデータを準備 ▼▼▼
+$effect_labels = [
+    'friendship_bonus' => '友情ボーナス', 'race_bonus' => 'レースボーナス', 'initial_bond' => '初期絆ゲージ',
+    'training_effect_up' => 'トレーニング効果UP', 'motivation_bonus' => 'やる気効果UP', 'specialty_rate_up' => '得意率UP',
+    'hint_lv_up' => 'ヒントLvUP', 'hint_rate_up' => 'ヒント発生率UP', 'fan_bonus' => 'ファン数ボーナス',
+    'skill_point_bonus' => 'スキルPtボーナス', 'failure_rate_down' => '失敗率DOWN', 'stamina_consumption_down' => '体力消費DOWN',
+    'speed_bonus' => 'スピードボーナス', 'stamina_bonus' => 'スタミナボーナス', 'power_bonus' => 'パワーボーナス',
+    'guts_bonus' => '根性ボーナス', 'wisdom_bonus' => '賢さボーナス', 'initial_skill_point_bonus' => '初期スキルPt'
+];
+// ▲▲▲【追記】▲▲▲
+
+// ========== POSTリクエスト（フォーム送信）処理 ==========
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $id = (int)($_POST['id'] ?? 0);
-    $conn->begin_transaction(); 
+    $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
+    if (!$id) { die("無効なIDです。"); }
 
+    // トランザクション開始
+    $conn->begin_transaction();
     try {
-        // --- 1. 画像処理 ---
-        $image_url_to_update = $_POST['current_image_url'];
-        if (isset($_FILES['card_image']) && $_FILES['card_image']['error'] == 0) {
-            $upload_dir = '../uploads/support_cards/';
-            if (!file_exists($upload_dir)) { mkdir($upload_dir, 0777, true); }
-            $file_name = time() . '_' . basename($_FILES['card_image']['name']);
-            $target_file = $upload_dir . $file_name;
-            if (move_uploaded_file($_FILES['card_image']['tmp_name'], $target_file)) {
-                $image_url_to_update = $target_file;
-                if (!empty($_POST['current_image_url']) && file_exists($_POST['current_image_url'])) {
-                    unlink($_POST['current_image_url']);
-                }
-            } else { 
-                throw new Exception("ファイルのアップロードに失敗しました。"); 
-            }
-        }
-
-        // --- 2. `support_cards`テーブル（基本情報）を更新 ---
-        $stmt_card = $conn->prepare("UPDATE support_cards SET card_name = ?, rarity = ?, card_type = ?, image_url = ? WHERE id = ?");
-        $stmt_card->bind_param("ssssi", $_POST['card_name'], $_POST['rarity'], $_POST['card_type'], $image_url_to_update, $id);
+        // 1. 基本情報の更新
+        $card_name = $_POST['card_name'] ?? '';
+        $rarity = $_POST['rarity'] ?? '';
+        $card_type = $_POST['card_type'] ?? '';
+        
+        // ▼▼▼【追記】pokedex_idを取得 ▼▼▼
+        $pokedex_id = !empty($_POST['pokedex_id']) ? (int)$_POST['pokedex_id'] : NULL;
+        
+        $stmt_card = $conn->prepare("UPDATE support_cards SET card_name = ?, rarity = ?, card_type = ?, pokedex_id = ? WHERE id = ?");
+        $stmt_card->bind_param("sssii", $card_name, $rarity, $card_type, $pokedex_id, $id);
         $stmt_card->execute();
         $stmt_card->close();
 
-        // --- 3. 古い性能データ (`card_effects`) を全て削除 ---
-        $stmt_delete_effects = $conn->prepare("DELETE FROM card_effects WHERE support_card_id = ?");
-        $stmt_delete_effects->bind_param("i", $id);
-        $stmt_delete_effects->execute();
-        $stmt_delete_effects->close();
-
-        // --- 4. 新しい性能データをINSERT ---
-        $stmt_effect = $conn->prepare("INSERT INTO card_effects (support_card_id, unlock_level, effect_type, effect_value) VALUES (?, ?, ?, ?)");
-        $effect_types = [
-            'friendship_bonus', 'race_bonus', 'initial_bond', 'training_effect_up', 
-            'motivation_bonus', 'specialty_rate_up', 'hint_lv_up', 'hint_rate_up', 'fan_bonus', 
-            'skill_point_bonus', 'failure_rate_down', 'stamina_consumption_down',
-            'speed_bonus', 'stamina_bonus', 'power_bonus', 'guts_bonus', 'wisdom_bonus',
-            'initial_skill_point_bonus'
-        ];
-        $unlock_level = 4;
-        foreach ($effect_types as $type) {
-            if (isset($_POST[$type]) && is_numeric($_POST[$type])) {
-                $value = (int)$_POST[$type];
-                $stmt_effect->bind_param("iisi", $id, $unlock_level, $type, $value);
-                $stmt_effect->execute();
-            }
+        // 2. 性能（Effects）の更新
+        $stmt_effect = $conn->prepare("INSERT INTO card_effects (support_card_id, unlock_level, effect_type, effect_value) VALUES (?, 4, ?, ?) ON DUPLICATE KEY UPDATE effect_value = VALUES(effect_value)");
+        foreach ($effect_labels as $name => $label) {
+            $value = $_POST[$name] ?? 0;
+            $stmt_effect->bind_param("isi", $id, $name, $value);
+            $stmt_effect->execute();
         }
         $stmt_effect->close();
-        
-        // --- 5. 古いスキル紐付け (`support_card_skills`) を全て削除 ---
+
+        // 3. 所持スキルの更新
+        $skill_ids = $_POST['skill_ids'] ?? [];
         $stmt_delete_skills = $conn->prepare("DELETE FROM support_card_skills WHERE support_card_id = ?");
         $stmt_delete_skills->bind_param("i", $id);
         $stmt_delete_skills->execute();
         $stmt_delete_skills->close();
-
-        // --- 6. 新しいスキル紐付けをINSERT ---
-        if (!empty($_POST['skill_ids']) && is_array($_POST['skill_ids'])) {
-            $stmt_add_skill = $conn->prepare("INSERT INTO support_card_skills (support_card_id, skill_id) VALUES (?, ?)");
-            foreach ($_POST['skill_ids'] as $skill_id) {
-                $sanitized_skill_id = (int)$skill_id;
-                $stmt_add_skill->bind_param("ii", $id, $sanitized_skill_id);
-                $stmt_add_skill->execute();
+        
+        if (!empty($skill_ids)) {
+            $stmt_insert_skill = $conn->prepare("INSERT INTO support_card_skills (support_card_id, skill_id) VALUES (?, ?)");
+            foreach ($skill_ids as $skill_id) {
+                $stmt_insert_skill->bind_param("ii", $id, $skill_id);
+                $stmt_insert_skill->execute();
             }
-            $stmt_add_skill->close();
+            $stmt_insert_skill->close();
         }
 
+        // コミット
         $conn->commit();
-        header("Location: view.php?id=" . $id);
+        header("Location: index.php"); // 完了後は一覧ページへ
         exit;
     } catch (Exception $e) {
         $conn->rollback();
-        $error_message = "エラーが発生しました: " . $e->getMessage();
+        $error_message = "更新に失敗しました: " . $e->getMessage();
     }
 }
 
-// =================================================================
-// GETリクエスト（ページ表示用）のデータ取得
-// =================================================================
-$card_id = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
-if ($card_id > 0) {
-    // --- 1. カード基本情報の取得 ---
-    $stmt_card = $conn->prepare("SELECT * FROM support_cards WHERE id = ?");
-    $stmt_card->bind_param("i", $card_id);
-    $stmt_card->execute();
-    $card = $stmt_card->get_result()->fetch_assoc();
-    $stmt_card->close();
 
-    // --- 2. 性能情報の取得 (完凸レベル4のみ) ---
-    $stmt_effects = $conn->prepare("SELECT effect_type, effect_value FROM card_effects WHERE support_card_id = ? AND unlock_level = 4");
-    $stmt_effects->bind_param("i", $card_id);
-    $stmt_effects->execute();
-    $result_effects = $stmt_effects->get_result();
-    while ($row = $result_effects->fetch_assoc()) { 
-        $effects[$row['effect_type']] = $row['effect_value']; 
-    }
-    $stmt_effects->close();
+// ========== GETリクエスト（編集フォーム表示）処理 ==========
+$id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+if ($id === false || $id <= 0) { header("Location: index.php"); exit; }
 
-    // --- 3. 全スキルリストの取得 (ツールチップと絞り込み用に項目を追加) ---
-    $all_skills_result = $conn->query("SELECT id, skill_name, skill_type, skill_description, distance_type, strategy_type FROM skills ORDER BY skill_name ASC");
-    while ($row = $all_skills_result->fetch_assoc()) { 
-        $all_skills[] = $row; 
-    }
+$stmt_card = $conn->prepare("SELECT * FROM support_cards WHERE id = ?");
+$stmt_card->bind_param("i", $id);
+$stmt_card->execute();
+$card = $stmt_card->get_result()->fetch_assoc();
+$stmt_card->close();
+if (!$card) { die("サポートカードが見つかりません。"); }
 
-    // --- 4. このカードが現在持っているスキルのIDリストを取得 ---
-    $current_skills_stmt = $conn->prepare("SELECT skill_id FROM support_card_skills WHERE support_card_id = ?");
-    $current_skills_stmt->bind_param("i", $card_id);
-    $current_skills_stmt->execute();
-    $current_skills_result = $current_skills_stmt->get_result();
-    while ($row = $current_skills_result->fetch_assoc()) { 
-        $current_skill_ids[] = $row['skill_id']; 
-    }
-    $current_skills_stmt->close();
+// ▼▼▼【追記】紐付け先候補となる全図鑑キャラクターを取得 ▼▼▼
+$pokedex_list = [];
+$result_pokedex = $conn->query("SELECT id, pokedex_name FROM pokedex ORDER BY pokedex_name ASC");
+while($row = $result_pokedex->fetch_assoc()) {
+    $pokedex_list[] = $row;
 }
-if (!$card && $_SERVER['REQUEST_METHOD'] !== 'POST') { 
-    die("カードが見つかりません。"); 
-}
+
+// (既存のコード... 性能、スキル情報を取得)
+$effects = [];
+$stmt_effects = $conn->prepare("SELECT effect_type, effect_value FROM card_effects WHERE support_card_id = ? AND unlock_level = 4");
+$stmt_effects->bind_param("i", $id);
+$stmt_effects->execute();
+$result_effects = $stmt_effects->get_result();
+while ($row = $result_effects->fetch_assoc()) { $effects[$row['effect_type']] = $row['effect_value']; }
+$stmt_effects->close();
+
+$all_skills = [];
+$result_skills = $conn->query("SELECT * FROM skills ORDER BY skill_name ASC");
+while ($row = $result_skills->fetch_assoc()) { $all_skills[] = $row; }
+
+$current_skill_ids = [];
+$stmt_current_skills = $conn->prepare("SELECT skill_id FROM support_card_skills WHERE support_card_id = ?");
+$stmt_current_skills->bind_param("i", $id);
+$stmt_current_skills->execute();
+$result_current_skills = $stmt_current_skills->get_result();
+while ($row = $result_current_skills->fetch_assoc()) { $current_skill_ids[] = $row['skill_id']; }
+$stmt_current_skills->close();
+
 $conn->close();
-
-// --- フォーム表示用の選択肢やラベルの定義 ---
-$effect_labels = [
-    'friendship_bonus' => '友情ボーナス (%)', 'race_bonus' => 'レースボーナス (%)', 'initial_bond' => '初期絆ゲージ',
-    'training_effect_up' => 'トレーニング効果UP (%)', 'motivation_bonus' => 'やる気効果UP (%)', 'specialty_rate_up' => '得意率UP',
-    'speed_bonus' => 'スピードボーナス', 'stamina_bonus' => 'スタミナボーナス', 'power_bonus' => 'パワーボーナス',
-    'guts_bonus' => '根性ボーナス', 'wisdom_bonus' => '賢さボーナス',
-    'hint_lv_up' => 'ヒントLvUP', 'hint_rate_up' => 'ヒント発生率UP (%)', 'fan_bonus' => 'ファン数ボーナス (%)',
-    'skill_point_bonus' => 'スキルPtボーナス', 'initial_skill_point_bonus' => '初期スキルPt',
-    'failure_rate_down' => '失敗率ダウン (%)', 'stamina_consumption_down' => '体力消費ダウン (%)',
-];
-$distance_options = ['短距離', 'マイル', '中距離', '長距離'];
-$strategy_options = ['逃げ', '先行', '差し', '追込'];
-$skill_type_options = ['ノーマルスキル', 'レアスキル', '進化スキル', '固有スキル', 'その他'];
+include '../templates/header.php';
 ?>
-<?php include '../templates/header.php'; ?>
 
 <div class="container">
     <h1>サポートカード編集</h1>
@@ -210,6 +171,20 @@ $skill_type_options = ['ノーマルスキル', 'レアスキル', '進化スキ
                         <option value="賢さ"     <?php if($card['card_type'] == '賢さ') echo 'selected'; ?>>賢さ</option>
                         <option value="友人"     <?php if($card['card_type'] == '友人') echo 'selected'; ?>>友人</option>
                         <option value="グループ" <?php if($card['card_type'] == 'グループ') echo 'selected'; ?>>グループ</option>
+                    </select>
+                </div>
+                 <div class="form-group">
+                    <label for="pokedex_id">関連ウマ娘 (図鑑):</label>
+                    <select id="pokedex_id" name="pokedex_id">
+                        <option value="">-- 関連付けなし --</option>
+                        <?php foreach($pokedex_list as $p_char): ?>
+                            <option 
+                                value="<?php echo $p_char['id']; ?>"
+                                <?php if ($card['pokedex_id'] == $p_char['id']) echo 'selected'; ?>
+                            >
+                                <?php echo htmlspecialchars($p_char['pokedex_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
             </div>
