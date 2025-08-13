@@ -190,3 +190,27 @@ include '../templates/header.php';
     </form>
     <a href="view.php?id=<?php echo $character['id']; ?>" class="back-link">&laquo; 詳細ページに戻る</a>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // プレビュー更新用の関数
+    function setupImagePreview(inputId, previewId) {
+        const inputElement = document.getElementById(inputId);
+        const previewElement = document.getElementById(previewId);
+
+        if (inputElement && previewElement) {
+            inputElement.addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    // 選択されたファイルをURLに変換してimgのsrcに設定
+                    previewElement.src = URL.createObjectURL(file);
+                }
+            });
+        }
+    }
+
+    // 3つの画像それぞれにプレビュー機能を設定
+    setupImagePreview('winning_outfit_image', 'winning_outfit_preview');
+    setupImagePreview('uniform_image', 'uniform_preview');
+    setupImagePreview('face_image', 'face_preview');
+});
+</script>

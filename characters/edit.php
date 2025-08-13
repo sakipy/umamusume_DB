@@ -178,11 +178,11 @@ $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
                     <div><input type="number" name="initial_guts" value="<?php echo htmlspecialchars($character['initial_guts']); ?>"></div>
                     <div><input type="number" name="initial_wisdom" value="<?php echo htmlspecialchars($character['initial_wisdom']); ?>"></div>
                     <div class="grid-label">成長率 (%)</div>
-                    <div><input type="number" name="growth_rate_speed" value="<?php echo htmlspecialchars($character['growth_rate_speed']); ?>" step="10"></div>
-                    <div><input type="number" name="growth_rate_stamina" value="<?php echo htmlspecialchars($character['growth_rate_stamina']); ?>" step="10"></div>
-                    <div><input type="number" name="growth_rate_power" value="<?php echo htmlspecialchars($character['growth_rate_power']); ?>" step="10"></div>
-                    <div><input type="number" name="growth_rate_guts" value="<?php echo htmlspecialchars($character['growth_rate_guts']); ?>" step="10"></div>
-                    <div><input type="number" name="growth_rate_wisdom" value="<?php echo htmlspecialchars($character['growth_rate_wisdom']); ?>" step="10"></div>
+                    <div><input type="number" name="growth_rate_speed" value="<?php echo htmlspecialchars($character['growth_rate_speed']); ?>" step="1"></div>
+                    <div><input type="number" name="growth_rate_stamina" value="<?php echo htmlspecialchars($character['growth_rate_stamina']); ?>" step="1"></div>
+                    <div><input type="number" name="growth_rate_power" value="<?php echo htmlspecialchars($character['growth_rate_power']); ?>" step="1"></div>
+                    <div><input type="number" name="growth_rate_guts" value="<?php echo htmlspecialchars($character['growth_rate_guts']); ?>" step="1"></div>
+                    <div><input type="number" name="growth_rate_wisdom" value="<?php echo htmlspecialchars($character['growth_rate_wisdom']); ?>" step="1"></div>
                 </div>
 
                 <h2 class="section-title-bar">適性</h2>

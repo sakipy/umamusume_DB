@@ -93,7 +93,7 @@ include '../templates/header.php';
                 </div>
                 <div class="form-group">
                     <label for="pokedex_name">名前:</label>
-                    <input type="text" id="pokedex_name" name="pokedex_name" required>
+                    <input type="text" id="pokedex_name" name="pokedex_name"  required>
                 </div>
                 <div class="form-group">
                     <label for="category">分類:</label>

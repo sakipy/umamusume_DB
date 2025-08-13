@@ -137,7 +137,7 @@ $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
                 </div>
                 <div class="form-group">
                     <label>ウマ娘名:</label>
-                    <input type="text" name="character_name" required>
+                    <input type="text" name="character_name" value="<?php echo htmlspecialchars($scraped_data['character_name'] ?? ''); ?>" required>
                 </div>
                  <div class="form-group">
                     <label>図鑑No. (紐付け):</label>
@@ -163,19 +163,19 @@ $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
                  <h2 class="section-title-bar">初期ステータスと成長率</h2>
                 <div class="status-growth-grid">
                     <div></div>
-                    <div class="grid-header">スピード</div><div class="grid-header">スタミナ</div><div class="grid-header">パワー</div><div class="grid-header">根性</div><div class="grid-header">賢さ</div>
-                    <div class="grid-label">初期ステータス</div>
-                    <div><input type="number" name="initial_speed" value="100"></div>
-                    <div><input type="number" name="initial_stamina" value="100"></div>
-                    <div><input type="number" name="initial_power" value="100"></div>
-                    <div><input type="number" name="initial_guts" value="100"></div>
-                    <div><input type="number" name="initial_wisdom" value="100"></div>
-                    <div class="grid-label">成長率 (%)</div>
-                    <div><input type="number" name="growth_rate_speed" value="10.0" step="10"></div>
-                    <div><input type="number" name="growth_rate_stamina" value="10.0" step="10"></div>
-                    <div><input type="number" name="growth_rate_power" value="10.0" step="10"></div>
-                    <div><input type="number" name="growth_rate_guts" value="0.0" step="10"></div>
-                    <div><input type="number" name="growth_rate_wisdom" value="0.0" step="10"></div>
+                    <div class="grid-header">スピ</div><div class="grid-header">スタ</div><div class="grid-header">パワ</div><div class="grid-header">根性</div><div class="grid-header">賢さ</div>
+                    <div class="grid-label">初期値</div>
+                    <input type="number" name="initial_speed" value="<?php echo htmlspecialchars($scraped_data['initial_speed'] ?? '100'); ?>">
+                    <input type="number" name="initial_stamina" value="<?php echo htmlspecialchars($scraped_data['initial_stamina'] ?? '100'); ?>">
+                    <input type="number" name="initial_power" value="<?php echo htmlspecialchars($scraped_data['initial_power'] ?? '100'); ?>">
+                    <input type="number" name="initial_guts" value="<?php echo htmlspecialchars($scraped_data['initial_guts'] ?? '100'); ?>">
+                    <input type="number" name="initial_wisdom" value="<?php echo htmlspecialchars($scraped_data['initial_wisdom'] ?? '100'); ?>">
+                    <div class="grid-label">成長率(%)</div>
+                    <input type="number" name="growth_rate_speed" step="0.1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_speed'] ?? '0'); ?>">
+                    <input type="number" name="growth_rate_stamina" step="0.1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_stamina'] ?? '0'); ?>">
+                    <input type="number" name="growth_rate_power" step="0.1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_power'] ?? '0'); ?>">
+                    <input type="number" name="growth_rate_guts" step="0.1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_guts'] ?? '0'); ?>">
+                    <input type="number" name="growth_rate_wisdom" step="0.1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_wisdom'] ?? '0'); ?>">
                 </div>
 
                 <h2 class="section-title-bar">適性</h2>
