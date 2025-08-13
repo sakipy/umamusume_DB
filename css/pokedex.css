@@ -1,0 +1,303 @@
+/* ================================================================
+    ウマ娘図鑑ページ スタイル
+================================================================ */
+
+.pokedex-grid {
+    display: grid;
+    /* 画面幅に応じて列数を自動調整 */
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+    margin-top: 24px;
+}
+
+.pokedex-card {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    border: 2px solid #ddd;
+    border-radius: 12px;
+    background-color: #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+    transition: transform 0.2s, box-shadow 0.2s;
+    overflow: hidden;
+}
+
+.pokedex-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+}
+
+.pokedex-image-wrapper {
+    width: 100%;
+    aspect-ratio: 1 / 1; /* ← ここを 1 / 1 (正方形) に変更 */
+    background-color: #f0f0f0;
+}
+
+.pokedex-image-wrapper img,
+.pokedex-image-wrapper .no-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block; /* ← この一行を追加 */
+}
+
+.pokedex-info {
+    padding: 12px 15px;
+    text-align: center;
+}
+
+.pokedex-id {
+    display: block;
+    font-size: 0.9em;
+    color: #888;
+    margin-bottom: 4px;
+}
+
+.pokedex-name {
+    font-weight: 700;
+    font-size: 1.1em;
+}
+
+/* レアリティ別の枠線 */
+.pokedex-card.rarity-1 { border-color: #c0c0c0; }
+.pokedex-card.rarity-2 { border-color: #e8b335; }
+.pokedex-card.rarity-3 {
+    border-width: 3px;
+    border-image: linear-gradient(45deg, #f09433, #dc2743, #bc1888) 1;
+}
+
+/* ファイルの末尾に追記 */
+
+/* ================================================================
+    図鑑 詳細ページ スタイル
+================================================================ */
+.pokedex-details-grid {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 32px;
+    align-items: flex-start;
+}
+.pokedex-details-image img {
+    width: 100%;
+    border-radius: 12px;
+    border: 3px solid var(--gold-color);
+}
+.pokedex-details-id {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #888;
+}
+.pokedex-description {
+    font-size: 1.1em;
+    line-height: 1.8;
+    margin-top: 15px;
+    padding-left: 15px;
+    white-space: pre-wrap; /* 改行をそのまま表示 */
+}
+
+/* ファイルの末尾に追記 */
+
+/* ================================================================
+    図鑑 追加・編集ページ レイアウト
+================================================================ */
+.pokedex-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: flex-start;
+}
+.form-col-main, .form-col-details {
+    min-width: 0;
+}
+.form-grid-3col {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+/* ================================================================
+    図鑑 詳細ページ 新レイアウト
+================================================================ */
+.pokedex-view-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #eee;
+}
+.pokedex-face-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid var(--gold-color);
+    flex-shrink: 0;
+}
+.pokedex-face-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.pokedex-view-header h1 {
+    margin: 0;
+    border: none;
+    padding: 0;
+    text-align: left;
+}
+.pokedex-view-header h1::after {
+    display: none;
+}
+.pokedex-cv {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #555;
+    margin-left: auto;
+}
+
+/* 画像切り替えボタン */
+.image-toggle {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.image-toggle button {
+    flex-grow: 1;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    background-color: #f8f9fa;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+.image-toggle button:hover {
+    background-color: #e9ecef;
+}
+.image-toggle button.active {
+    background-color: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+/* 画像表示エリア */
+.character-view-image {
+    display: none;
+}
+.character-view-image.active {
+    display: block;
+}
+
+/* ================================================================
+    図鑑 詳細ページ スリムレイアウト
+================================================================ */
+
+.pokedex-details-grid {
+    display: grid;
+    /* 左:画像(320px) | 右:情報(残り全部) */
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+.pokedex-left-column, .pokedex-right-column {
+    min-width: 0;
+}
+
+.character-view-image, .no-image.active {
+    display: none;
+}
+.character-view-image.active, .no-image.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ========== 図鑑カード下の編集・削除ボタン (修正版) ========== */
+.pokedex-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* カードの高さを揃えるために重要 */
+}
+
+.pokedex-card-main {
+    position: relative; /* リンクをオーバーレイさせるための基準 */
+    flex-grow: 1; /* この要素がカード内の余白を全て埋める */
+    display: flex;
+    flex-direction: column;
+}
+
+.pokedex-card-image-wrapper {
+    flex-grow: 1; /* 画像エリアが余白を埋める */
+}
+
+.pokedex-card-link {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.pokedex-card-actions {
+    padding: 8px;
+    background-color: #f1f5f9; /* cool-gray-100 */
+    border-top: 1px solid #e2e8f0; /* cool-gray-200 */
+    display: flex;
+    justify-content: space-around;
+    gap: 8px;
+    /* この領域はflex-growを持たないので、常に一番下に固定される */
+}
+
+/* ========== 図鑑カードの画像サイズを適正化 ========== */
+.pokedex-card-image-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 画像の比率を保ったまま、コンテナ全体を覆う */
+}
+
+/* ========== 図鑑カードの文字スタイル調整 ========== */
+.pokedex-card-name {
+    font-family: 'M PLUS Rounded 1c', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    font-weight: 800; /* 太字にして力強さを表現 */
+    font-size: 1.1em;
+    color: #1e293b; /* cool-gray-800 */
+    text-align: center;
+    padding: 12px 8px; /* 上下の余白を調整 */
+    background-color: #ffffff;
+    /* 文字がずれないように、Flexbox関連のプロパティをリセット */
+    flex-grow: 0;
+    flex-shrink: 0;
+    line-height: 1.3; /* 行の高さを調整 */
+}
+
+/* ========== 図鑑ページのタブ切り替え ========== */
+.tab-container {
+    display: flex;
+    border-bottom: 3px solid #e2e8f0; /* cool-gray-200 */
+    margin-bottom: 25px;
+}
+.tab-item {
+    padding: 12px 25px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 1.1em;
+    color: #64748b; /* cool-gray-500 */
+    border-bottom: 3px solid transparent;
+    margin-bottom: -3px; /* 枠線と重なるように調整 */
+    transition: all 0.2s;
+}
+.tab-item:hover {
+    color: #0ea5e9; /* sky-500 */
+}
+.tab-item.active {
+    color: #0ea5e9; /* sky-500 */
+    border-bottom-color: #0ea5e9;
+}
+
+/* タブで切り替えるコンテンツ */
+.tab-content {
+    display: none; /* 初期状態では非表示 */
+}
+.tab-content.active {
+    display: block; /* アクティブなタブのコンテンツのみ表示 */
+}

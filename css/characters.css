@@ -1,0 +1,132 @@
+/* ================================================================
+    ウマ娘管理ページ 共通スタイル
+================================================================ */
+
+.section-title-bar {
+    background-color: var(--gold-color);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 1.2em;
+    margin-top: 30px;
+    margin-bottom: 15px;
+}
+
+/* ================================================================
+    ウマ娘 追加・編集ページ レイアウト
+================================================================ */
+
+.character-form-grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+    align-items: flex-start;
+    margin-bottom: 24px;
+}
+
+.form-col-main { /* 左カラム */
+    /* スティッキー（追従）は一旦解除し、シンプルな構成に */
+}
+.form-col-details { /* 右カラム */
+    min-width: 0;
+}
+
+/* ★★★ 新しく追加 ★★★ */
+/* 追加画像用のグリッド */
+.additional-images-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 24px;
+}
+/* ★★★ ここまで ★★★ */
+
+
+/* プレビュー画像のレアリティ枠 */
+.image-preview-wrapper.rarity-1 { border-color: #c0c0c0; box-shadow: 0 0 8px rgba(192, 192, 192, 0.5); }
+.image-preview-wrapper.rarity-2 { border-color: #e8b335; box-shadow: 0 0 12px rgba(232, 179, 53, 0.6); }
+.image-preview-wrapper.rarity-3 { border: 4px solid; border-image: linear-gradient(45deg, #f09433, #dc2743, #bc1888) 1; box-shadow: 0 0 16px rgba(188, 24, 136, 0.5); }
+
+
+/* ステータスと成長率のグリッド */
+.status-growth-grid {
+    display: grid;
+    grid-template-columns: 100px repeat(5, 1fr);
+    gap: 10px;
+    align-items: center;
+}
+.status-growth-grid .grid-header { text-align: center; font-weight: bold; background-color: #f2f2f2; padding: 8px 0; border-radius: 4px; }
+.status-growth-grid .grid-label { font-weight: bold; text-align: right; padding-right: 10px; }
+.status-growth-grid input { text-align: center; font-size: 1.1em; }
+
+/* 適性グリッド */
+.aptitude-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.aptitude-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; background-color: #f8f9fa; padding: 8px; border-radius: 6px;}
+.aptitude-row span { font-weight: bold; font-size: 0.9em; }
+.aptitude-row select { width: auto; flex-grow: 1; padding: 6px; font-size: 1em; }
+
+
+/* ================================================================
+    ウマ娘 一覧ページ
+================================================================ */
+
+.character-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 24px;
+    margin-top: 20px;
+    min-height: 400px;
+}
+.character-card-grid.loading { opacity: 0.5; transition: opacity 0.3s; }
+.character-card-item { position: relative; background: #fff; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden; transition: transform 0.2s, box-shadow 0.2s; }
+.character-card-item:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(0,0,0,0.15); }
+/* umamusume/css/characters.css の該当箇所 */
+
+.character-card-image-wrapper { 
+    width: 100%; 
+    aspect-ratio: 2 / 3; /* ← ここを 2 / 3 に変更 */
+    overflow: hidden; 
+    position: relative; 
+}
+.character-card-image-wrapper .no-image, .character-card-image-wrapper img { width: 100%; height: 100%; object-fit: cover; background-color: #e9ecef; }
+.character-card-info { padding: 12px; text-align: center; border-top: 1px solid #eee; }
+.character-card-rarity { font-size: 1.1em; color: #f39c12; }
+.character-card-name { margin: 4px 0 8px 0; font-size: 1.1em; font-weight: 700; }
+.character-card-item.rarity-1 { border: 3px solid #c0c0c0; }
+.character-card-item.rarity-2 { border: 3px solid #e8b335; }
+.character-card-item.rarity-3 { border: 3px solid #bc1888; }
+.character-card-actions { position: relative; z-index: 2; padding: 0 12px 12px; display: flex; justify-content: center; }
+.face-image-container { position: absolute; bottom: 5px; right: 5px; width: 64px; height: 64px; border-radius: 50%; overflow: hidden; border: 3px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+.face-image { width: 100%; height: 100%; object-fit: cover; }
+
+/* ================================================================
+    ウマ娘 詳細ページ
+================================================================ */
+
+.character-view-header { display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 24px; }
+.character-view-header h1 { border-bottom: none; margin: 0; padding: 0; }
+.character-view-header h1::after { display: none; }
+.character-view-rarity { font-size: 2em; color: #f39c12; line-height: 1; }
+
+.character-view-grid { display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: flex-start; margin-bottom: 30px; }
+.character-view-image { width: 100%; border-radius: 12px; }
+.status-growth-grid.view-mode { background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; }
+.status-growth-grid.view-mode .grid-data { font-size: 1.1em; font-weight: bold; text-align: center; }
+.status-growth-grid.view-mode .growth-rate.has-growth { color: var(--primary-color); }
+
+.aptitude-view-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.aptitude-category { background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; }
+.aptitude-label { font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #e0e0e0; padding-bottom: 5px; }
+.aptitude-item { display: flex; justify-content: space-between; padding: 4px 0; }
+.aptitude-rank { font-weight: bold; font-size: 1.2em; }
+.rank-S, .rank-A { color: #e74c3c; } .rank-B, .rank-C { color: #3498db; } .rank-D, .rank-E { color: #f39c12; } .rank-F, .rank-G { color: #95a5a6; }
+
+.skill-section .skill-table { margin-top: 0; }
+
+/* ================================================================
+    ウマ娘 追加・編集ページ 画像プレビューのサイズ調整
+================================================================ */
+.character-form-grid .image-preview-wrapper {
+    width: 100%; /* 親要素の幅いっぱいに広げる */
+    aspect-ratio: 400 / 600; /* アスペクト比を4:6 (2:3) に設定 */
+    height: auto; /* 高さはアスペクト比から自動計算させる */
+}

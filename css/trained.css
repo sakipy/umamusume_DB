@@ -1,0 +1,163 @@
+/* ================================================================
+    育成ウマ娘一覧ページ スタイル
+================================================================ */
+.trained-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 24px;
+    margin-top: 20px;
+}
+.trained-card-item {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative;
+}
+.trained-card-item:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+}
+.trained-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #eee;
+}
+.trained-card-face-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid var(--gold-color);
+    flex-shrink: 0;
+}
+.trained-card-face-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.trained-card-name-block {
+    text-align: left;
+}
+.trained-card-character-name {
+    font-weight: 700;
+    font-size: 1.1em;
+}
+.trained-card-nickname {
+    font-size: 0.85em;
+    color: #555;
+}
+.trained-card-body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+.trained-card-evaluation {
+    text-align: center;
+    margin-bottom: 12px;
+}
+.eval-rank {
+    font-size: 2.2em;
+    font-weight: 800;
+    line-height: 1;
+}
+.eval-score {
+    font-size: 0.9em;
+    font-weight: 700;
+    color: #888;
+}
+.trained-card-stats {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+    text-align: center;
+    font-size: 0.9em;
+}
+.stat-label { font-weight: 700; }
+.stat-value { font-weight: 700; font-size: 1.2em; }
+
+.trained-card-footer {
+    padding: 10px;
+    margin-top: auto;
+    display: flex;
+    justify-content: flex-end;
+    position: relative; /* z-indexを有効にする */
+    z-index: 2;       /* カード全体リンク(z-index: 1)より手前に表示 */
+}
+
+/* ================================================================
+    育成ウマ娘 詳細ページ スタイル
+================================================================ */
+.trained-view-grid {
+    display: grid;
+    grid-template-columns: 300px 1fr; /* 左:画像 | 右:情報 */
+    gap: 24px;
+    align-items: flex-start;
+    margin-top: 24px;
+    margin-bottom: 30px;
+}
+.trained-view-left, .trained-view-right {
+    min-width: 0;
+}
+.trained-evaluation {
+    text-align: center;
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+.trained-screenshot {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+/* 育成ウマ娘 詳細ページのステータス表示を5列に修正 */
+.status-growth-grid.view-mode {
+    grid-template-columns: repeat(5, 1fr);
+}
+
+/* ================================================================
+    育成ウマ娘 ランク色分けスタイル
+================================================================ */
+
+/* ▼ 一覧カードの評価ランク表示 ▼ */
+.trained-card-evaluation .eval-rank {
+    display: inline-block;
+    padding: 2px 12px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+}
+
+/* ▼ 詳細ページの評価ランク表示 ▼ */
+.trained-evaluation .eval-rank {
+    display: inline-block;
+    padding: 4px 20px;
+    border-radius: 10px;
+    margin-bottom: 5px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+}
+
+/* ▼ 各ランクの具体的な色指定（ranks.cssから引用）▼ */
+.rank-g, .rank-f, .rank-e, .rank-d { background-color: #94a3b8; color: white; }
+.rank-c { background-color: #cd7f32; color: white; }
+.rank-b { background-color: #228B22; color: white; }
+.rank-a { background-color: #dc2626; color: white; }
+.rank-s { background-color: #c0c0c0; color: #333; text-shadow: none; }
+.rank-ss, .rank-ss\+ { background-color: #ffd700; color: #4a2e19; text-shadow: none; }
+.rank-ug { background: linear-gradient(135deg, #f9a8d4, #c084fc); color: white; }
+.rank-ua { background: linear-gradient(135deg, #818cf8, #d8b4fe); color: white; }
+.rank-ub { background: linear-gradient(135deg, #7dd3fc, #a5b4fc); color: white; }
+.rank-uc { background: linear-gradient(135deg, #6ee7b7, #93c5fd); color: white; }
+.rank-ud { background: linear-gradient(135deg, #a7f3d0, #bfdbfe); color: white; }
+.rank-ue { background: linear-gradient(135deg, #fde047, #f59e0b); color: white; }
+.rank-uf { background: linear-gradient(135deg, #fca5a5, #fdba74); color: white; }
+.rank-us { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); color: white; font-weight: bold; }

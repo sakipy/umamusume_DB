@@ -1,0 +1,102 @@
+/* ================================================================
+    レース一覧ページ グリッドスタイル
+================================================================ */
+.race-grid-container {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 15px;
+    margin-top: 20px;
+}
+.race-grid-container.loading {
+    opacity: 0.5;
+    transition: opacity 0.3s;
+}
+
+.race-card-item {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.race-card-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+.race-card-image-wrapper {
+    width: 100%;
+    aspect-ratio: 16 / 9; /* 横長の画像比率 */
+    background-color: #f0f0f0;
+}
+.race-card-image-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.race-card-info {
+    padding: 10px;
+    text-align: center;
+    border-top: 1px solid #eee;
+}
+.race-card-name {
+    font-weight: 700;
+    font-size: 1em;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.race-card-name a {
+    text-decoration: none;
+    color: inherit;
+}
+
+/* カード全体をリンクにするための設定 */
+.race-card-item a.stretched-link {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 1;
+}
+
+/* ================================================================
+    レースカードのアクションボタン
+================================================================ */
+.race-card-actions {
+    padding: 0 10px 10px;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    position: relative;
+    z-index: 2; /* カード全体リンクより手前に表示 */
+}
+
+/* ================================================================
+    レースグレード別の枠線色
+================================================================ */
+.race-card-item {
+    border: 3px solid transparent; /* デフォルトの枠線は透明に */
+}
+.race-card-item.grade-g1,
+.race-card-item.grade-jpn1 {
+    border-color: #e74c3c; /* G1: 赤 */
+}
+.race-card-item.grade-g2,
+.race-card-item.grade-jpn2 {
+    border-color: #3498db; /* G2: 青 */
+}
+.race-card-item.grade-g3,
+.race-card-item.grade-jpn3 {
+    border-color: #2ecc71; /* G3: 緑 */
+}
+.race-card-item.grade-op,
+.race-card-item.grade-l {
+    border-color: #f39c12; /* OP, L: オレンジ */
+}
+.race-card-item.grade-pre-op {
+    border-color: #9b59b6; /* Pre-OP: 紫 */
+}
