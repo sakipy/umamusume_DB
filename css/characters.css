@@ -48,12 +48,6 @@
 
 
 /* ステータスと成長率のグリッド */
-.status-growth-grid {
-    display: grid;
-    grid-template-columns: 100px repeat(5, 1fr);
-    gap: 10px;
-    align-items: center;
-}
 .status-growth-grid .grid-header { text-align: center; font-weight: bold; background-color: #f2f2f2; padding: 8px 0; border-radius: 4px; }
 .status-growth-grid .grid-label { font-weight: bold; text-align: right; padding-right: 10px; }
 .status-growth-grid input { text-align: center; font-size: 1.1em; }
@@ -109,7 +103,6 @@
 
 .character-view-grid { display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: flex-start; margin-bottom: 30px; }
 .character-view-image { width: 100%; border-radius: 12px; }
-.status-growth-grid.view-mode { background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; }
 .status-growth-grid.view-mode .grid-data { font-size: 1.1em; font-weight: bold; text-align: center; }
 .status-growth-grid.view-mode .growth-rate.has-growth { color: var(--primary-color); }
 
@@ -129,4 +122,102 @@
     width: 100%; /* 親要素の幅いっぱいに広げる */
     aspect-ratio: 400 / 600; /* アスペクト比を4:6 (2:3) に設定 */
     height: auto; /* 高さはアスペクト比から自動計算させる */
+}
+
+/* -- ▼▼▼【追記】ステータス表示のズレを修正 ▼▼▼ -- */
+.status-growth-grid {
+    display: grid;
+    grid-template-columns: 60px repeat(5, 1fr); /* ラベル列と5つのステータス列を定義 */
+    gap: 8px;
+    align-items: center; /* 垂直方向の中央揃え */
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.status-growth-grid .grid-header {
+    font-weight: bold;
+    background-color: #f2f2f2;
+    padding: 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.status-growth-grid .grid-label {
+    font-weight: bold;
+    text-align: right;
+    padding-right: 10px;
+    font-size: 0.9em;
+}
+
+.status-growth-grid .grid-data {
+    padding: 4px;
+}
+
+.status-growth-grid .growth-rate {
+    color: #007bff;
+    font-weight: bold;
+}
+
+.status-growth-grid .growth-rate.has-growth {
+    background-color: #e7f3ff;
+    border-radius: 4px;
+}
+
+/* =============================================
+   ウマ娘詳細ページ :: ステータス＆成長率グリッド
+   ============================================= */
+
+/* グリッドの基本構造 */
+.status-growth-grid {
+    display: grid;
+    /* 1列目(ラベル用)をauto、残り5列を均等に配置 */
+    grid-template-columns: auto repeat(5, 1fr); 
+    gap: 8px 5px; /* 行と列の隙間 */
+    align-items: center; /* アイテムを垂直方向中央に配置 */
+    text-align: center;
+}
+
+/* ヘッダー (スピ, スタ など) */
+.status-growth-grid .grid-header {
+    font-weight: bold;
+    background-color: #f0f2f5;
+    padding: 6px 4px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #333;
+}
+
+/* ラベル (初期値, 成長率) */
+.status-growth-grid .grid-label {
+    font-weight: bold;
+    text-align: right;
+    padding-right: 10px;
+    font-size: 13px;
+    color: #555;
+}
+
+/* データ (数値) */
+.status-growth-grid .grid-data {
+    font-size: 15px;
+}
+
+/* 成長率のデータ */
+.status-growth-grid .growth-rate {
+    color: #007bff;
+    font-weight: bold;
+}
+
+/* 成長率に数値がある場合の背景色 */
+.status-growth-grid .growth-rate.has-growth {
+    background-color: #e7f3ff;
+    border-radius: 4px;
+    padding: 2px 0;
+}
+
+/* view-modeクラスが付与された時の外枠スタイル */
+.status-growth-grid.view-mode {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    background-color: #fdfdfd;
 }

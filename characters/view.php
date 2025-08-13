@@ -14,7 +14,6 @@ if ($conn->connect_error) { die("DB接続失敗: " . $conn->connect_error); }
 $conn->set_charset("utf8mb4");
 
 // === 1. メインとなるキャラクターの基本情報を取得 ===
-// pokedexテーブルから顔画像も取得しておく
 $stmt_char = $conn->prepare("
     SELECT c.*, p.face_image_url 
     FROM characters c
@@ -32,46 +31,41 @@ if (!$character) {
 }
 $page_title = '詳細: ' . htmlspecialchars($character['character_name']);
 
-
-// === 2. 関連する「育成記録」を取得 ===
-$trained_list = [];
-$stmt_trained = $conn->prepare("
-    SELECT id, nickname, evaluation_rank, evaluation_score, trained_date 
-    FROM trained_umamusume 
-    WHERE character_id = ? 
-    ORDER BY trained_date DESC
+// === 2. 所持スキルを取得 ===
+$owned_skills = [];
+$stmt_skills = $conn->prepare("
+    SELECT s.*, cs.unlock_condition 
+    FROM skills s
+    JOIN character_skills cs ON s.id = cs.skill_id
+    WHERE cs.character_id = ?
 ");
-$stmt_trained->bind_param("i", $id);
-$stmt_trained->execute();
-$result_trained = $stmt_trained->get_result();
-while ($row = $result_trained->fetch_assoc()) {
-    $trained_list[] = $row;
+$stmt_skills->bind_param("i", $id);
+$stmt_skills->execute();
+$result_skills = $stmt_skills->get_result();
+while($row = $result_skills->fetch_assoc()){
+    $owned_skills[] = $row;
 }
-$stmt_trained->close();
+$stmt_skills->close();
 
-
-// === 3. 関連する「サポートカード」を取得 ===
-$related_cards = [];
-// character_support_card_relation 中間テーブルを使用
-$stmt_cards = $conn->prepare("
-    SELECT s.id, s.card_name, s.image_url
-    FROM support_cards s
-    JOIN character_support_card_relation r ON s.id = r.support_card_id
-    WHERE r.character_id = ?
-");
-$stmt_cards->bind_param("i", $id);
-$stmt_cards->execute();
-$result_cards = $stmt_cards->get_result();
-while ($row = $result_cards->fetch_assoc()) {
-    $related_cards[] = $row;
-}
-$stmt_cards->close();
-
-$conn->close(); // DB接続を閉じる
+$conn->close();
 
 include '../templates/header.php';
 ?>
 
+<style>
+    /* ステータス＆成長率グリッドのレイアウトをここで確定させる */
+    .status-growth-grid.view-mode {
+        display: grid !important; /* !importantで他のCSSを強制的に上書き */
+        grid-template-columns: 60px repeat(5, 1fr); /* ラベル列 + ステータス5列 */
+        gap: 8px 5px;
+        align-items: center;
+        text-align: center;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 15px;
+        background-color: #fdfdfd;
+    }
+</style>
 <div class="container">
     <div class="character-view-header">
         <div class="character-view-rarity"><?php echo str_repeat('★', $character['rarity']); ?></div>
@@ -82,8 +76,8 @@ include '../templates/header.php';
         <div class="character-view-image-container">
             <div class="image-wrapper">
                 <?php if (!empty($character['image_url_suit']) && file_exists('../' . $character['image_url_suit'])): ?>
-                    <?php // ▼▼▼ ここの変数名を修正しました ▼▼▼ ?>
-                    <img id="character-image-suit" src="../<?php echo htmlspecialchars($character['image_url_suit']); ?>" alt="<?php echo htmlspecialchars($character['character_name']); ?> (勝負服)" class="character-view-image active rarity-<?php echo $character['rarity']; ?>">                <?php else: ?>
+                    <img id="character-image-suit" src="../<?php echo htmlspecialchars($character['image_url_suit']); ?>" alt="<?php echo htmlspecialchars($character['character_name']); ?> (勝負服)" class="character-view-image active rarity-<?php echo $character['rarity']; ?>">
+                <?php else: ?>
                     <div id="character-image-suit" class="no-image rarity-<?php echo $character['rarity']; ?>" style="height: 350px;">勝負服画像なし</div>
                 <?php endif; ?>
             </div>
@@ -167,19 +161,15 @@ include '../templates/header.php';
             <p>このウマ娘に登録されているスキルはありません。</p>
         <?php endif; ?>
     </div>
-
     
-
     <div class="controls-container" style="display: flex; justify-content: center; margin-top: 30px;">
         <div class="page-actions">
-            <?php if ($GLOBALS['edit_mode_enabled']): ?>
+            <?php if (!empty($GLOBALS['edit_mode_enabled']) && $GLOBALS['edit_mode_enabled']): ?>
                 <a href="edit.php?id=<?php echo $character['id']; ?>" class="action-button button-edit">このウマ娘を編集する</a>
             <?php endif; ?>
             <a href="index.php" class="back-link">&laquo; 一覧に戻る</a>
         </div>
     </div>
 </div>
-
-
 
 <?php include '../templates/footer.php'; ?>
