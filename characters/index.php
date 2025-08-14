@@ -26,7 +26,8 @@ $conn->close();
         <div class="controls-container">
             <div class="page-actions">
                 <a href="add.php" class="add-link">新しいウマ娘を追加する</a>
-            </div>
+                <a href="import.php" class="add-link" style="background-color: #f39c12; border-color: #d68910;">GameWithからインポート</a>
+                </div>
             <div style="display: flex; align-items: center; gap: 15px;">
                 <button type="button" id="open-advanced-filter" class="action-button button-edit">詳細絞り込み</button>
                 <div class="active-filters-container" id="active-filters-container"></div>
@@ -60,7 +61,7 @@ $conn->close();
 
         <div id="advanced-filter-modal" class="modal-overlay">
             <div class="modal-content" style="width: 900px;">
-                <button type="button" id="close-advanced-filter" class="modal-close-button">&times;</button>
+                <button type="button" id="close-advanced-filter" class="modal-close-button">×</button>
                 <h2>適性・成長率で絞り込み</h2>
                 <div class="aptitude-filter-grid">
                     <div class="form-group">

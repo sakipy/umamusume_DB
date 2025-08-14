@@ -8,6 +8,15 @@ $base_path = '../';
 $message = ''; 
 $error_message = '';
 $all_skills = [];
+$scraped_data = []; // スクレイピングデータ用の配列を初期化
+
+// スクレイピングデータをセッションから読み込む処理
+session_start();
+if (isset($_SESSION['scraped_data'])) {
+    $scraped_data = $_SESSION['scraped_data'];
+    // 一度読み込んだらセッションから削除
+    unset($_SESSION['scraped_data']);
+}
 
 // ========== データベース接続 ==========
 $conn = new mysqli('localhost', 'root', '', 'umamusume_db');
@@ -20,7 +29,6 @@ $conn->set_charset("utf8mb4");
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $conn->begin_transaction();
     try {
-        // --- IDの重複チェック ---
         $id = (int)($_POST['id'] ?? 0);
         if ($id <= 0) {
             throw new Exception("IDは必須です。");
@@ -33,15 +41,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $stmt_check->close();
 
-        // ---  Helper function for file upload ---
         function upload_image($file_key, $prefix) {
             if (isset($_FILES[$file_key]) && $_FILES[$file_key]['error'] == 0) {
                 $upload_dir = '../uploads/characters/';
+                if (!file_exists($upload_dir)) { mkdir($upload_dir, 0777, true); }
                 $file_name = time() . '_' . $prefix . '_' . basename($_FILES[$file_key]['name']);
                 $target_file = $upload_dir . $file_name;
-
                 if (move_uploaded_file($_FILES[$file_key]['tmp_name'], $target_file)) {
-                    return 'uploads/characters/' . $file_name; // 相対パスを返す
+                    return 'uploads/characters/' . $file_name;
                 } else {
                     throw new Exception( ucfirst($prefix) . "画像のアップロードに失敗しました。");
                 }
@@ -51,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         $image_url_suit = upload_image('character_image_suit', 'suit');
 
-        // --- bind_paramを回避してSQLクエリを構築 ---
+        // --- ▼▼▼【ご指定のロジックを適用】▼▼▼ ---
         $columns = [
             'id', 'character_name', 'rarity', 'pokedex_id', 'image_url', 'image_url_suit',
             'initial_speed', 'initial_stamina', 'initial_power', 'initial_guts', 'initial_wisdom',
@@ -95,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (!$conn->query($sql)) {
             throw new Exception("データベースへの登録に失敗しました: " . $conn->error);
         }
+        // --- ▲▲▲【適用ここまで】▲▲▲ ---
         
         // --- `character_skills` テーブルへのINSERT ---
         if (!empty($_POST['skill_ids']) && is_array($_POST['skill_ids'])) {
@@ -171,11 +179,11 @@ $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
                     <input type="number" name="initial_guts" value="<?php echo htmlspecialchars($scraped_data['initial_guts'] ?? '100'); ?>">
                     <input type="number" name="initial_wisdom" value="<?php echo htmlspecialchars($scraped_data['initial_wisdom'] ?? '100'); ?>">
                     <div class="grid-label">成長率(%)</div>
-                    <input type="number" name="growth_rate_speed" step="0.1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_speed'] ?? '0'); ?>">
-                    <input type="number" name="growth_rate_stamina" step="0.1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_stamina'] ?? '0'); ?>">
-                    <input type="number" name="growth_rate_power" step="0.1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_power'] ?? '0'); ?>">
-                    <input type="number" name="growth_rate_guts" step="0.1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_guts'] ?? '0'); ?>">
-                    <input type="number" name="growth_rate_wisdom" step="0.1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_wisdom'] ?? '0'); ?>">
+                    <input type="number" name="growth_rate_speed" step="1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_speed'] ?? '0'); ?>">
+                    <input type="number" name="growth_rate_stamina" step="1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_stamina'] ?? '0'); ?>">
+                    <input type="number" name="growth_rate_power" step="1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_power'] ?? '0'); ?>">
+                    <input type="number" name="growth_rate_guts" step="1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_guts'] ?? '0'); ?>">
+                    <input type="number" name="growth_rate_wisdom" step="1" value="<?php echo htmlspecialchars($scraped_data['growth_rate_wisdom'] ?? '0'); ?>">
                 </div>
 
                 <h2 class="section-title-bar">適性</h2>
@@ -183,26 +191,26 @@ $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
                     <div class="form-group">
                         <label>バ場適性</label>
                         <div class="aptitude-row">
-                            <span>芝</span><select name="surface_aptitude_turf"><?php foreach($aptitude_options as $op) echo "<option value='$op' ".($op == 'A' ? 'selected' : '').">$op</option>"; ?></select>
-                            <span>ダート</span><select name="surface_aptitude_dirt"><?php foreach($aptitude_options as $op) echo "<option value='$op' ".($op == 'G' ? 'selected' : '').">$op</option>"; ?></select>
+                            <span>芝</span><select name="surface_aptitude_turf"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['surface_aptitude_turf']) && $op == $scraped_data['surface_aptitude_turf']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
+                            <span>ダート</span><select name="surface_aptitude_dirt"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['surface_aptitude_dirt']) && $op == $scraped_data['surface_aptitude_dirt']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>距離適性</label>
                         <div class="aptitude-row">
-                            <span>短距離</span><select name="distance_aptitude_short"><?php foreach($aptitude_options as $op) echo "<option value='$op'>$op</option>"; ?></select>
-                            <span>マイル</span><select name="distance_aptitude_mile"><?php foreach($aptitude_options as $op) echo "<option value='$op'>$op</option>"; ?></select>
-                            <span>中距離</span><select name="distance_aptitude_medium"><?php foreach($aptitude_options as $op) echo "<option value='$op'>$op</option>"; ?></select>
-                            <span>長距離</span><select name="distance_aptitude_long"><?php foreach($aptitude_options as $op) echo "<option value='$op'>$op</option>"; ?></select>
+                            <span>短距離</span><select name="distance_aptitude_short"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['distance_aptitude_short']) && $op == $scraped_data['distance_aptitude_short']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
+                            <span>マイル</span><select name="distance_aptitude_mile"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['distance_aptitude_mile']) && $op == $scraped_data['distance_aptitude_mile']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
+                            <span>中距離</span><select name="distance_aptitude_medium"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['distance_aptitude_medium']) && $op == $scraped_data['distance_aptitude_medium']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
+                            <span>長距離</span><select name="distance_aptitude_long"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['distance_aptitude_long']) && $op == $scraped_data['distance_aptitude_long']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>脚質適性</label>
                         <div class="aptitude-row">
-                            <span>逃げ</span><select name="strategy_aptitude_runner"><?php foreach($aptitude_options as $op) echo "<option value='$op'>$op</option>"; ?></select>
-                            <span>先行</span><select name="strategy_aptitude_leader"><?php foreach($aptitude_options as $op) echo "<option value='$op'>$op</option>"; ?></select>
-                            <span>差し</span><select name="strategy_aptitude_chaser"><?php foreach($aptitude_options as $op) echo "<option value='$op'>$op</option>"; ?></select>
-                            <span>追込</span><select name="strategy_aptitude_trailer"><?php foreach($aptitude_options as $op) echo "<option value='$op'>$op</option>"; ?></select>
+                            <span>逃げ</span><select name="strategy_aptitude_runner"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['strategy_aptitude_runner']) && $op == $scraped_data['strategy_aptitude_runner']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
+                            <span>先行</span><select name="strategy_aptitude_leader"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['strategy_aptitude_leader']) && $op == $scraped_data['strategy_aptitude_leader']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
+                            <span>差し</span><select name="strategy_aptitude_chaser"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['strategy_aptitude_chaser']) && $op == $scraped_data['strategy_aptitude_chaser']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
+                            <span>追込</span><select name="strategy_aptitude_trailer"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['strategy_aptitude_trailer']) && $op == $scraped_data['strategy_aptitude_trailer']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
                         </div>
                     </div>
                 </div>
