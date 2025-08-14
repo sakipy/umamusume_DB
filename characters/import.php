@@ -35,14 +35,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
             throw new Exception("「基礎能力と成長率」の見出しが見つかりませんでした。");
         }
 
-        // h4の見出しから各テーブルを特定
+        // 初期ステータステーブルの特定とデータ取得
         $initialStatusTable = $base_h3->nextAll()->filter('h4:contains("基礎能力")')->first()->nextAll()->filter('.uma_fix_table table')->first();
-        $growthRateTable = $base_h3->nextAll()->filter('h4:contains("成長率")')->first()->nextAll()->filter('.uma_fix_table table')->first();
-
         if ($initialStatusTable->count() === 0) throw new Exception("初期ステータステーブルが見つかりませんでした。");
-        if ($growthRateTable->count() === 0) throw new Exception("成長率テーブルが見つかりませんでした。");
-
-        // 初期ステータスの取得
+        
         $status_map = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
         $initialStatusTable->filter('tbody tr')->eq(1)->filter('td')->each(function ($node, $i) use (&$scraped_data, $status_map) {
             if (isset($status_map[$i])) {
@@ -50,7 +46,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
             }
         });
 
-        // 成長率の取得
+        // 成長率テーブルの特定とデータ取得
+        $growthRateTable = $base_h3->nextAll()->filter('h4:contains("成長率")')->first()->nextAll()->filter('.uma_fix_table table')->first();
+        if ($growthRateTable->count() === 0) throw new Exception("成長率テーブルが見つかりませんでした。");
+        
         $growthRateTable->filter('tbody tr')->eq(0)->filter('td')->each(function ($node, $i) use (&$scraped_data, $status_map) {
             if (isset($status_map[$i])) {
                 $scraped_data['growth_rate_' . $status_map[$i]] = (float)str_replace('%', '', $node->text());
@@ -62,14 +61,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
         if ($aptitudeTable->count() === 0) throw new Exception("適性テーブルが見つかりませんでした。");
 
         function getRankFromSrc($src) {
-            // "i_rank_Gp.png" のような形式からランクを抽出
             if (preg_match('/i_rank_([A-G])(p?)\.png/', $src, $matches)) {
-                // $matches[1] は 'G', $matches[2] は 'p' または空
                 return $matches[1] . ($matches[2] === 'p' ? '+' : '');
             }
-            return 'G'; // 見つからない場合はデフォルト
+            return 'G'; // 見つからない場合はデフォルト値
         }
         
+        // 適性テーブルの行を「バ場」「距離」「脚質」の見出しで特定してデータを取得
         $aptitudes_map = [
             'バ場' => ['surface_aptitude_turf', 'surface_aptitude_dirt'],
             '距離' => ['distance_aptitude_short', 'distance_aptitude_mile', 'distance_aptitude_medium', 'distance_aptitude_long'],
@@ -77,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
         ];
         
         $aptitudeTable->filter('tbody tr')->each(function ($tr) use (&$scraped_data, $aptitudes_map) {
-            $thText = $tr->filter('th')->text();
+            $thText = trim($tr->filter('th')->text());
             if (isset($aptitudes_map[$thText])) {
                 $keys = $aptitudes_map[$thText];
                 $tr->filter('td img')->each(function ($imgNode, $i) use (&$scraped_data, $keys) {
