@@ -9,6 +9,45 @@ require_once $base_path . 'vendor/autoload.php';
 use Goutte\Client;
 use Symfony\Component\HttpClient\HttpClient;
 
+// URL結合用の関数
+function urljoin($base, $relative) {
+    // 相対URLがすでに絶対URLの場合、そのまま返す
+    if (parse_url($relative, PHP_URL_SCHEME) !== null) {
+        return $relative;
+    }
+
+    // ベースURLを解析
+    $base_parts = parse_url($base);
+    if ($base_parts === false) {
+        return $relative;
+    }
+
+    // 絶対URLを構築
+    $scheme = isset($base_parts['scheme']) ? $base_parts['scheme'] : 'https';
+    $host = isset($base_parts['host']) ? $base_parts['host'] : '';
+    $path = isset($base_parts['path']) ? $base_parts['path'] : '/';
+
+    // ベースパスのファイル名を削除し、ディレクトリのみ保持
+    $path = preg_replace('#/[^/]*$#', '/', $path);
+
+    // 相対パスの処理
+    if (substr($relative, 0, 1) === '/') {
+        // ホストに対する絶対パス
+        return "$scheme://$host$relative";
+    }
+
+    // パスを結合
+    $absolute_path = $path . $relative;
+
+    // ../ や ./ を解決
+    $absolute_path = preg_replace('#/(\./)+#', '/', $absolute_path);
+    while (preg_match('#/[^/]+/\.\./#', $absolute_path)) {
+        $absolute_path = preg_replace('#/[^/]+/\.\./#', '/', $absolute_path);
+    }
+
+    return "$scheme://$host$absolute_path";
+}
+
 $scraped_data = null;
 $error_message = '';
 $url = '';
@@ -75,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                 $debug_info .= "<strong>--- 基礎能力の取得開始 ---</strong><br>";
             }
             
-            // まず全てのテーブルを探索
+            // 全てのテーブルを探索
             $all_tables = $crawler->filter('table');
             $status_map = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
             $status_found = false;
@@ -92,7 +131,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                 }
                 
                 $rows = $table->filter('tr');
-                $rows->each(function ($row, $row_index) use (&$scraped_data, $status_map, &$status_found, &$growth_found, $debug_mode, &$debug_info, $table_index) {
+                $growth_values_accum = []; // 縦型テーブルの蓄積用
+                $table_is_growth_vertical = false;
+
+                $rows->each(function ($row, $row_index) use (&$scraped_data, $status_map, &$status_found, &$growth_found, $debug_mode, &$debug_info, $table_index, &$growth_values_accum, &$table_is_growth_vertical) {
                     $cells = $row->filter('td, th');
                     if ($cells->count() > 0) {
                         $row_text = '';
@@ -110,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                             $debug_info .= "  行{$row_index}: " . implode(' | ', $cell_values) . "<br>";
                         }
                         
-                        // 初期ステータス行の判定（より詳細に）
+                        // 初期ステータス行の判定
                         if (!$status_found && count($cell_values) >= 6) {
                             // 数値が5つ連続で含まれているかチェック
                             $numeric_count = 0;
@@ -124,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                             }
                             
                             if ($numeric_count >= 5 && 
-                                (preg_match('/(基礎|初期|ステータス|能力)/u', $row_text) || 
+                                (preg_match('/(基礎|初期|ステータス|能力|星3)/u', $row_text) || 
                                  $numeric_values[0] > 50)) { // 初期値は通常50以上
                                 
                                 foreach ($status_map as $index => $stat) {
@@ -140,12 +182,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                             }
                         }
                         
-                        // 成長率行の判定
-                        if (!$growth_found && count($cell_values) >= 6 && 
-                            preg_match('/(成長|%)/u', $row_text)) {
-                            
+                        // 成長率行の判定（横型対応: 1行に5つの%を含むセル）
+                        if (!$growth_found && count($cell_values) >= 5 && preg_match('/(成長|%)/u', implode(' ', $cell_values))) {
                             $growth_values = [];
-                            for ($i = 1; $i < count($cell_values) && $i <= 5; $i++) {
+                            
+                            for ($i = 0; $i < count($cell_values); $i++) { // 横型なのでi=0から
                                 if (preg_match('/(\d+(?:\.\d+)?)/', $cell_values[$i], $matches)) {
                                     $growth_values[] = (float)$matches[1];
                                 }
@@ -160,12 +201,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                                 $growth_found = true;
                                 
                                 if ($debug_mode) {
-                                    $debug_info .= "  ★成長率発見！<br>";
+                                    $debug_info .= "  ★成長率発見（横型）！<br>";
                                 }
+                            }
+                        }
+                        
+                        // 縦型成長率の蓄積（各行がth + td %）
+                        if (count($cell_values) == 2 && preg_match('/%/', $cell_values[1])) {
+                            $table_is_growth_vertical = true;
+                            if (preg_match('/(\d+(?:\.\d+)?)/', $cell_values[1], $matches)) {
+                                $growth_values_accum[] = (float)$matches[1];
                             }
                         }
                     }
                 });
+                
+                // 縦型テーブルの確認
+                if (!$growth_found && $table_is_growth_vertical && count($growth_values_accum) == 5) {
+                    foreach ($status_map as $index => $stat) {
+                        $scraped_data['growth_rate_' . $stat] = $growth_values_accum[$index];
+                    }
+                    $growth_found = true;
+                    if ($debug_mode) {
+                        $debug_info .= "  ★成長率発見（縦型）！<br>";
+                    }
+                }
                 
                 // 両方見つかったら終了
                 if ($status_found && $growth_found) {
@@ -179,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                     $scraped_data['initial_' . $stat] = 100;
                 }
                 if ($debug_mode) {
-                    $debug_info .= "初期ステータスが見つからないため、デフォルト値(100)を設定<br>";
+                    $debug_info .= "初期ステータスが見つからなかったため、デフォルト値(100)を設定<br>";
                 }
             }
             
@@ -188,7 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                     $scraped_data['growth_rate_' . $stat] = 0;
                 }
                 if ($debug_mode) {
-                    $debug_info .= "成長率が見つからないため、デフォルト値(0)を設定<br>";
+                    $debug_info .= "成長率が見つからなかったため、デフォルト値(0)を設定<br>";
                 }
             }
 
@@ -245,20 +305,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
             
             // 適性マッピング
             $aptitudes_map = [
-                'バ' => ['surface_aptitude_turf', 'surface_aptitude_dirt'],
-                '場' => ['surface_aptitude_turf', 'surface_aptitude_dirt'],
                 'バ場' => ['surface_aptitude_turf', 'surface_aptitude_dirt'],
                 '距離' => ['distance_aptitude_short', 'distance_aptitude_mile', 'distance_aptitude_medium', 'distance_aptitude_long'],
                 '脚質' => ['strategy_aptitude_runner', 'strategy_aptitude_leader', 'strategy_aptitude_chaser', 'strategy_aptitude_trailer']
             ];
             
+            // テーブルごとの処理
             $aptitude_tables->each(function ($table, $table_index) use (&$scraped_data, $aptitudes_map, &$aptitudes_found, $debug_mode, &$debug_info) {
                 if ($debug_mode) {
                     $debug_info .= "<br><strong>適性テーブル {$table_index}:</strong><br>";
                 }
                 
                 $rows = $table->filter('tr');
-                $rows->each(function ($row, $row_index) use (&$scraped_data, $aptitudes_map, &$aptitudes_found, $debug_mode, &$debug_info, $table_index) {
+                $rows->each(function ($row, $row_index) use (&$scraped_data, $aptitudes_map, &$aptitudes_found, $debug_mode, &$debug_info) {
                     $th = $row->filter('th');
                     $tds = $row->filter('td');
                     
@@ -274,8 +333,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                         $matched_fields = null;
                         
                         foreach ($aptitudes_map as $key => $fields) {
-                            if (strpos($thText, $key) !== false || 
-                                (strlen($key) <= 2 && strpos($thText, $key) !== false)) {
+                            if (strpos($thText, $key) !== false) {
                                 $matched_type = $key;
                                 $matched_fields = $fields;
                                 break;
@@ -320,6 +378,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                 });
             });
             
+            // テーブル以外での適性取得（保険として）
+            if (!$aptitudes_found) {
+                if ($debug_mode) {
+                    $debug_info .= "テーブルから適性が見つからなかったため、代替セレクタを試行<br>";
+                }
+                
+                // 代替: テキストベースで適性を探す
+                $aptitude_sections = $crawler->filter('div, span, td')->filterXPath('//*[contains(text(), "適性")]');
+                $aptitude_sections->each(function ($section) use (&$scraped_data, &$aptitudes_found, $aptitudes_map, $debug_mode, &$debug_info) {
+                    $text = $section->text();
+                    foreach ($aptitudes_map as $key => $fields) {
+                        if (strpos($text, $key) !== false) {
+                            $siblings = $section->siblings()->filter('span, td');
+                            $ranks_found = [];
+                            $siblings->each(function ($sibling) use (&$ranks_found, $debug_mode, &$debug_info) {
+                                $rank = getRankFromElement($sibling);
+                                if ($rank) {
+                                    $ranks_found[] = $rank;
+                                    if ($debug_mode) {
+                                        $debug_info .= "      代替セレクタでランク発見: {$rank}<br>";
+                                    }
+                                }
+                            });
+                            
+                            foreach ($fields as $field_index => $field_name) {
+                                if (isset($ranks_found[$field_index])) {
+                                    $scraped_data[$field_name] = $ranks_found[$field_index];
+                                    $aptitudes_found = true;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
             if ($debug_mode) {
                 $debug_info .= "適性取得完了。見つかった適性: " . ($aptitudes_found ? 'あり' : 'なし') . "<br>";
             }
@@ -360,6 +453,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                 'strategy_aptitude_chaser' => 'C', 'strategy_aptitude_trailer' => 'C'
             ];
             $scraped_data = array_merge($scraped_data, $default_aptitudes);
+        }
+
+        // 4. 画像の自動ダウンロード
+        try {
+            // 複数のセレクタを試行
+            $image_node = $crawler->filter('img[alt*="のアイキャッチ"], img[src*="/chara"], img[src*="/character"]');
+            if ($image_node->count() > 0) {
+                $relative_src = $image_node->first()->attr('data-original') ?: $image_node->first()->attr('src');
+                $image_url = urljoin($url, $relative_src);
+                
+                if ($debug_mode) {
+                    $debug_info .= "画像URL発見: " . $image_url . "<br>";
+                }
+                
+                // ダウンロード
+                $upload_dir = '../uploads/characters/';
+                if (!file_exists($upload_dir)) {
+                    mkdir($upload_dir, 0777, true);
+                }
+                $file_name = time() . '_suit_' . basename(parse_url($image_url, PHP_URL_PATH));
+                $target_file = $upload_dir . $file_name;
+                
+                // MIMEタイプのチェック
+                $image_content = file_get_contents($image_url);
+                if ($image_content) {
+                    $finfo = new finfo(FILEINFO_MIME_TYPE);
+                    $mime_type = $finfo->buffer($image_content);
+                    if (strpos($mime_type, 'image/') !== 0) {
+                        throw new Exception("無効な画像形式です: $mime_type");
+                    }
+                    
+                    if (file_put_contents($target_file, $image_content)) {
+                        $scraped_data['image_suit_path'] = 'uploads/characters/' . $file_name;
+                        if ($debug_mode) {
+                            $debug_info .= "画像ダウンロード成功: " . $target_file . "<br>";
+                        }
+                    } else {
+                        throw new Exception("画像の保存に失敗しました");
+                    }
+                } else {
+                    throw new Exception("画像ダウンロード失敗");
+                }
+            } else {
+                if ($debug_mode) {
+                    $debug_info .= "画像が見つかりませんでした。セレクタ: img[alt*=\"のアイキャッチ\"], img[src*=\"/chara\"], img[src*=\"/character\"]<br>";
+                }
+            }
+        } catch (Exception $e) {
+            if ($debug_mode) {
+                $debug_info .= "画像取得エラー: " . $e->getMessage() . "<br>";
+            }
+        }
+
+        // セッション保存前にデータを確認
+        if ($debug_mode && $scraped_data) {
+            $debug_info .= "<br><strong>セッションに保存されるデータ:</strong><br>";
+            $debug_info .= "<pre>" . print_r($scraped_data, true) . "</pre>";
         }
         
     } catch (Exception $e) {

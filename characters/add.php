@@ -40,6 +40,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt_check->close();
 
         function upload_image($file_key, $prefix) {
+            global $scraped_data;
+            
+            // セッションから自動ダウンロードされたパスがあれば使用
+            if (isset($scraped_data['image_suit_path']) && file_exists('../' . $scraped_data['image_suit_path'])) {
+                return $scraped_data['image_suit_path'];
+            }
+            
+            // なければ手動アップロード
             if (isset($_FILES[$file_key]) && $_FILES[$file_key]['error'] == 0) {
                 $upload_dir = '../uploads/characters/';
                 if (!file_exists($upload_dir)) { mkdir($upload_dir, 0777, true); }
@@ -154,7 +162,11 @@ $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
                 <div class="form-group">
                     <label>勝負服画像:</label>
                     <div id="image-preview-suit" class="image-preview-wrapper">
-                        <img id="image_preview_suit_img" src="" style="display: none;"><span>プレビュー</span>
+                        <?php if (!empty($scraped_data['image_suit_path']) && file_exists($base_path . $scraped_data['image_suit_path'])): ?>
+                            <img id="image_preview_suit_img" src="<?php echo htmlspecialchars($base_path . $scraped_data['image_suit_path']); ?>" style="display: block;">
+                        <?php else: ?>
+                            <img id="image_preview_suit_img" src="" style="display: none;"><span>プレビュー</span>
+                        <?php endif; ?>
                     </div>
                     <label for="character_image_suit" class="file-upload-label">ファイルを選択...</label>
                     <input type="file" id="character_image_suit" name="character_image_suit" class="file-upload-input">
