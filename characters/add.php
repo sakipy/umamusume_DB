@@ -8,13 +8,12 @@ $base_path = '../';
 $message = ''; 
 $error_message = '';
 $all_skills = [];
-$scraped_data = []; // スクレイピングデータ用の配列を初期化
+$scraped_data = [];
 
-// スクレイピングデータをセッションから読み込む処理
-session_start();
+// スクレイピングデータをセッションから読み込む
+if (session_status() == PHP_SESSION_NONE) { session_start(); }
 if (isset($_SESSION['scraped_data'])) {
     $scraped_data = $_SESSION['scraped_data'];
-    // 一度読み込んだらセッションから削除
     unset($_SESSION['scraped_data']);
 }
 
@@ -30,9 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $conn->begin_transaction();
     try {
         $id = (int)($_POST['id'] ?? 0);
-        if ($id <= 0) {
-            throw new Exception("IDは必須です。");
-        }
+        if ($id <= 0) { throw new Exception("IDは必須です。"); }
+
         $stmt_check = $conn->prepare("SELECT id FROM characters WHERE id = ?");
         $stmt_check->bind_param("i", $id);
         $stmt_check->execute();
@@ -49,16 +47,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $target_file = $upload_dir . $file_name;
                 if (move_uploaded_file($_FILES[$file_key]['tmp_name'], $target_file)) {
                     return 'uploads/characters/' . $file_name;
-                } else {
-                    throw new Exception( ucfirst($prefix) . "画像のアップロードに失敗しました。");
                 }
+                throw new Exception( ucfirst($prefix) . "画像のアップロードに失敗しました。");
             }
             return null;
         }
 
         $image_url_suit = upload_image('character_image_suit', 'suit');
 
-        // --- ▼▼▼【ご指定のロジックを適用】▼▼▼ ---
+        // --- ご指定のSQL構築方法 ---
         $columns = [
             'id', 'character_name', 'rarity', 'pokedex_id', 'image_url', 'image_url_suit',
             'initial_speed', 'initial_stamina', 'initial_power', 'initial_guts', 'initial_wisdom',
@@ -67,13 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             'distance_aptitude_short', 'distance_aptitude_mile', 'distance_aptitude_medium', 'distance_aptitude_long',
             'strategy_aptitude_runner', 'strategy_aptitude_leader', 'strategy_aptitude_chaser', 'strategy_aptitude_trailer'
         ];
-        
         $values = [];
-        // 各POSTデータを安全な形式に変換して$values配列に追加
         $values[] = (int)($_POST['id'] ?? 0);
         $values[] = "'" . $conn->real_escape_string($_POST['character_name']) . "'";
         $values[] = (int)($_POST['rarity'] ?? 1);
-        $values[] = isset($_POST['pokedex_id']) && $_POST['pokedex_id'] !== '' ? (int)$_POST['pokedex_id'] : "NULL";
+        $values[] = !empty($_POST['pokedex_id']) ? (int)$_POST['pokedex_id'] : "NULL";
         $values[] = $image_url_suit ? "'" . $conn->real_escape_string($image_url_suit) . "'" : "NULL";
         $values[] = $image_url_suit ? "'" . $conn->real_escape_string($image_url_suit) . "'" : "NULL";
         $values[] = (int)($_POST['initial_speed'] ?? 0);
@@ -102,13 +97,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (!$conn->query($sql)) {
             throw new Exception("データベースへの登録に失敗しました: " . $conn->error);
         }
-        // --- ▲▲▲【適用ここまで】▲▲▲ ---
         
-        // --- `character_skills` テーブルへのINSERT ---
         if (!empty($_POST['skill_ids']) && is_array($_POST['skill_ids'])) {
             $stmt_skill = $conn->prepare("INSERT INTO character_skills (character_id, skill_id, unlock_condition) VALUES (?, ?, ?)");
             foreach ($_POST['skill_ids'] as $skill_id) {
-                $unlock_condition = '初期'; 
+                $unlock_condition = '初期';
                 $stmt_skill->bind_param("iis", $id, $skill_id, $unlock_condition);
                 $stmt_skill->execute();
             }
@@ -124,6 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
+// フォーム表示に必要なデータを取得
 $all_skills_result = $conn->query("SELECT id, skill_name, skill_type FROM skills ORDER BY skill_name ASC");
 while ($row = $all_skills_result->fetch_assoc()) { $all_skills[] = $row; }
 $conn->close();
