@@ -27,6 +27,7 @@ $conn->close();
             <div class="page-actions">
                 <a href="add.php" class="add-link">新しいウマ娘を追加する</a>
                 <a href="import.php" class="add-link" style="background-color: #f39c12; border-color: #d68910;">GameWithからインポート</a>
+                <a href="scrape_all.php" class="add-link" style="background-color: #e74c3c; border-color: #c0392b;">GameWithから一括インポート</a>
                 </div>
             <div style="display: flex; align-items: center; gap: 15px;">
                 <button type="button" id="open-advanced-filter" class="action-button button-edit">詳細絞り込み</button>
