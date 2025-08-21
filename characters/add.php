@@ -9,11 +9,17 @@ $message = '';
 $error_message = '';
 $all_skills = [];
 $scraped_data = [];
+$selected_skill_ids = [];
+$character_skills_from_import = []; // インポートされたスキル情報（解放条件付き）
 
-// スクレイピングデータをセッションから読み込む
+// セッションからデータを読み込む
 if (session_status() == PHP_SESSION_NONE) { session_start(); }
 if (isset($_SESSION['scraped_data'])) {
     $scraped_data = $_SESSION['scraped_data'];
+    // ▼▼▼【修正】解放条件付きのスキル情報を取得 ▼▼▼
+    $character_skills_from_import = $scraped_data['character_skills'] ?? []; 
+    // ▼▼▼【修正】チェックボックス選択用にスキルIDだけの配列も作成 ▼▼▼
+    $selected_skill_ids = array_column($character_skills_from_import, 'skill_id');
     unset($_SESSION['scraped_data']);
 }
 
@@ -28,8 +34,10 @@ $conn->set_charset("utf8mb4");
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $conn->begin_transaction();
     try {
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id <= 0) { throw new Exception("IDは必須です。"); }
+        $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
+        if (!$id || $id <= 0) {
+            throw new Exception("有効なIDを入力してください。");
+        }
 
         $stmt_check = $conn->prepare("SELECT id FROM characters WHERE id = ?");
         $stmt_check->bind_param("i", $id);
@@ -40,30 +48,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt_check->close();
 
         function upload_image($file_key, $prefix) {
-            global $scraped_data;
-            
-            // セッションから自動ダウンロードされたパスがあれば使用
-            if (isset($scraped_data['image_suit_path']) && file_exists('../' . $scraped_data['image_suit_path'])) {
-                return $scraped_data['image_suit_path'];
+            if (!empty($_POST['image_suit_path'])) {
+                return $_POST['image_suit_path'];
             }
-            
-            // なければ手動アップロード
-            if (isset($_FILES[$file_key]) && $_FILES[$file_key]['error'] == 0) {
+            if (isset($_FILES[$file_key]) && $_FILES[$file_key]['error'] == UPLOAD_ERR_OK) {
                 $upload_dir = '../uploads/characters/';
-                if (!file_exists($upload_dir)) { mkdir($upload_dir, 0777, true); }
-                $file_name = time() . '_' . $prefix . '_' . basename($_FILES[$file_key]['name']);
+                if (!is_dir($upload_dir)) { mkdir($upload_dir, 0777, true); }
+                $file_extension = pathinfo($_FILES[$file_key]['name'], PATHINFO_EXTENSION);
+                $file_name = time() . '_' . $prefix . '_' . bin2hex(random_bytes(8)) . '.' . $file_extension;
                 $target_file = $upload_dir . $file_name;
+                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                $mime_type = $finfo->file($_FILES[$file_key]['tmp_name']);
+                if (strpos($mime_type, 'image/') !== 0) {
+                    throw new Exception(ucfirst($prefix) . "画像のファイル形式が無効です。");
+                }
                 if (move_uploaded_file($_FILES[$file_key]['tmp_name'], $target_file)) {
                     return 'uploads/characters/' . $file_name;
                 }
-                throw new Exception( ucfirst($prefix) . "画像のアップロードに失敗しました。");
+                throw new Exception(ucfirst($prefix) . "画像のアップロードに失敗しました。");
             }
             return null;
         }
 
         $image_url_suit = upload_image('character_image_suit', 'suit');
 
-        // --- ご指定のSQL構築方法 ---
         $columns = [
             'id', 'character_name', 'rarity', 'pokedex_id', 'image_url', 'image_url_suit',
             'initial_speed', 'initial_stamina', 'initial_power', 'initial_guts', 'initial_wisdom',
@@ -99,17 +107,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $values[] = "'" . $conn->real_escape_string($_POST['strategy_aptitude_leader']) . "'";
         $values[] = "'" . $conn->real_escape_string($_POST['strategy_aptitude_chaser']) . "'";
         $values[] = "'" . $conn->real_escape_string($_POST['strategy_aptitude_trailer']) . "'";
-
+        
         $sql = "INSERT INTO characters (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $values) . ")";
 
         if (!$conn->query($sql)) {
             throw new Exception("データベースへの登録に失敗しました: " . $conn->error);
         }
         
+        // ▼▼▼【修正】スキルと解放条件をDBに登録する処理 ▼▼▼
         if (!empty($_POST['skill_ids']) && is_array($_POST['skill_ids'])) {
+            // インポートされたスキル情報（解放条件付き）をhiddenフィールドから取得
+            $imported_skills_json = $_POST['imported_skills_json'] ?? '[]';
+            $imported_skills = json_decode($imported_skills_json, true);
+            $unlock_conditions_map = array_column($imported_skills, 'unlock_condition', 'skill_id');
+
             $stmt_skill = $conn->prepare("INSERT INTO character_skills (character_id, skill_id, unlock_condition) VALUES (?, ?, ?)");
             foreach ($_POST['skill_ids'] as $skill_id) {
-                $unlock_condition = '初期';
+                // マップから解放条件を検索し、見つからなければ '初期' を使う
+                $unlock_condition = $unlock_conditions_map[$skill_id] ?? '初期';
                 $stmt_skill->bind_param("iis", $id, $skill_id, $unlock_condition);
                 $stmt_skill->execute();
             }
@@ -122,13 +137,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } catch (Exception $e) {
         $conn->rollback();
         $error_message = "エラー: " . $e->getMessage();
+        $scraped_data = array_merge($scraped_data, $_POST);
+        // エラー発生時も、スキル選択状態を復元するためにセッションデータを再利用
+        $character_skills_from_import = json_decode($_POST['imported_skills_json'] ?? '[]', true);
+        $selected_skill_ids = array_column($character_skills_from_import, 'skill_id');
     }
 }
 
-// フォーム表示に必要なデータを取得
+// スキル一覧を取得
+$all_skills = [];
 $all_skills_result = $conn->query("SELECT id, skill_name, skill_type FROM skills ORDER BY skill_name ASC");
-while ($row = $all_skills_result->fetch_assoc()) { $all_skills[] = $row; }
+while ($row = $all_skills_result->fetch_assoc()) { 
+    $all_skills[] = $row; 
+}
 $conn->close();
+
 $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
 ?>
 <?php include '../templates/header.php'; ?>
@@ -139,24 +162,30 @@ $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
     <?php if (!empty($error_message)): ?><div class="message error"><?php echo $error_message; ?></div><?php endif; ?>
 
     <form action="add.php" method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="image_suit_path" value="<?php echo htmlspecialchars($scraped_data['image_suit_path'] ?? ''); ?>">
+        
+        <input type="hidden" name="imported_skills_json" value='<?php echo htmlspecialchars(json_encode($character_skills_from_import), ENT_QUOTES, 'UTF-8'); ?>'>
+
         <div class="character-form-grid">
             <div class="form-col-main">
                 <div class="form-group">
-                    <label>ID:</label>
-                    <input type="number" name="id" required>
+                    <label for="id">ID:</label>
+                    <input type="number" id="id" name="id" value="<?php echo htmlspecialchars($scraped_data['id'] ?? ''); ?>" required>
                 </div>
                 <div class="form-group">
-                    <label>ウマ娘名:</label>
-                    <input type="text" name="character_name" value="<?php echo htmlspecialchars($scraped_data['character_name'] ?? ''); ?>" required>
+                    <label for="character_name">ウマ娘名:</label>
+                    <input type="text" id="character_name" name="character_name" value="<?php echo htmlspecialchars($scraped_data['character_name'] ?? ''); ?>" required>
                 </div>
                  <div class="form-group">
-                    <label>図鑑No. (紐付け):</label>
-                    <input type="number" name="pokedex_id">
-                </div>
+                    <label for="pokedex_id">図鑑No. (紐付け):</label>
+                    <input type="number" id="pokedex_id" name="pokedex_id" value="<?php echo htmlspecialchars($scraped_data['pokedex_id'] ?? ''); ?>">
+                 </div>
                 <div class="form-group">
-                    <label>初期レアリティ:</label>
+                    <label for="rarity_select">初期レアリティ:</label>
                     <select id="rarity_select" name="rarity" required>
-                        <option value="1">★1</option> <option value="2">★2</option> <option value="3" selected>★3</option>
+                        <option value="1" <?php echo (($scraped_data['rarity'] ?? 3) == 1) ? 'selected' : ''; ?>>★1</option> 
+                        <option value="2" <?php echo (($scraped_data['rarity'] ?? 3) == 2) ? 'selected' : ''; ?>>★2</option> 
+                        <option value="3" <?php echo (($scraped_data['rarity'] ?? 3) == 3) ? 'selected' : ''; ?>>★3</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -169,7 +198,7 @@ $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
                         <?php endif; ?>
                     </div>
                     <label for="character_image_suit" class="file-upload-label">ファイルを選択...</label>
-                    <input type="file" id="character_image_suit" name="character_image_suit" class="file-upload-input">
+                    <input type="file" id="character_image_suit" name="character_image_suit" class="file-upload-input" accept="image/*">
                 </div>
             </div>
 
@@ -194,29 +223,38 @@ $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
 
                 <h2 class="section-title-bar">適性</h2>
                 <div class="aptitude-grid">
+                    <?php
+                    function render_aptitude_options($name, $scraped_value) {
+                        $options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
+                        foreach($options as $op) {
+                            $selected = ($op == $scraped_value) ? 'selected' : '';
+                            echo "<option value='$op' $selected>$op</option>";
+                        }
+                    }
+                    ?>
                     <div class="form-group">
                         <label>バ場適性</label>
                         <div class="aptitude-row">
-                            <span>芝</span><select name="surface_aptitude_turf"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['surface_aptitude_turf']) && $op == $scraped_data['surface_aptitude_turf']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
-                            <span>ダート</span><select name="surface_aptitude_dirt"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['surface_aptitude_dirt']) && $op == $scraped_data['surface_aptitude_dirt']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
+                            <span>芝</span><select name="surface_aptitude_turf"><?php render_aptitude_options('surface_aptitude_turf', $scraped_data['surface_aptitude_turf'] ?? 'C'); ?></select>
+                            <span>ダート</span><select name="surface_aptitude_dirt"><?php render_aptitude_options('surface_aptitude_dirt', $scraped_data['surface_aptitude_dirt'] ?? 'C'); ?></select>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>距離適性</label>
                         <div class="aptitude-row">
-                            <span>短距離</span><select name="distance_aptitude_short"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['distance_aptitude_short']) && $op == $scraped_data['distance_aptitude_short']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
-                            <span>マイル</span><select name="distance_aptitude_mile"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['distance_aptitude_mile']) && $op == $scraped_data['distance_aptitude_mile']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
-                            <span>中距離</span><select name="distance_aptitude_medium"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['distance_aptitude_medium']) && $op == $scraped_data['distance_aptitude_medium']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
-                            <span>長距離</span><select name="distance_aptitude_long"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['distance_aptitude_long']) && $op == $scraped_data['distance_aptitude_long']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
+                            <span>短</span><select name="distance_aptitude_short"><?php render_aptitude_options('distance_aptitude_short', $scraped_data['distance_aptitude_short'] ?? 'C'); ?></select>
+                            <span>マ</span><select name="distance_aptitude_mile"><?php render_aptitude_options('distance_aptitude_mile', $scraped_data['distance_aptitude_mile'] ?? 'C'); ?></select>
+                            <span>中</span><select name="distance_aptitude_medium"><?php render_aptitude_options('distance_aptitude_medium', $scraped_data['distance_aptitude_medium'] ?? 'C'); ?></select>
+                            <span>長</span><select name="distance_aptitude_long"><?php render_aptitude_options('distance_aptitude_long', $scraped_data['distance_aptitude_long'] ?? 'C'); ?></select>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>脚質適性</label>
                         <div class="aptitude-row">
-                            <span>逃げ</span><select name="strategy_aptitude_runner"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['strategy_aptitude_runner']) && $op == $scraped_data['strategy_aptitude_runner']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
-                            <span>先行</span><select name="strategy_aptitude_leader"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['strategy_aptitude_leader']) && $op == $scraped_data['strategy_aptitude_leader']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
-                            <span>差し</span><select name="strategy_aptitude_chaser"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['strategy_aptitude_chaser']) && $op == $scraped_data['strategy_aptitude_chaser']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
-                            <span>追込</span><select name="strategy_aptitude_trailer"><?php foreach($aptitude_options as $op) { $selected = (isset($scraped_data['strategy_aptitude_trailer']) && $op == $scraped_data['strategy_aptitude_trailer']) ? 'selected' : ''; echo "<option value='$op' $selected>$op</option>"; } ?></select>
+                            <span>逃</span><select name="strategy_aptitude_runner"><?php render_aptitude_options('strategy_aptitude_runner', $scraped_data['strategy_aptitude_runner'] ?? 'C'); ?></select>
+                            <span>先</span><select name="strategy_aptitude_leader"><?php render_aptitude_options('strategy_aptitude_leader', $scraped_data['strategy_aptitude_leader'] ?? 'C'); ?></select>
+                            <span>差</span><select name="strategy_aptitude_chaser"><?php render_aptitude_options('strategy_aptitude_chaser', $scraped_data['strategy_aptitude_chaser'] ?? 'C'); ?></select>
+                            <span>追</span><select name="strategy_aptitude_trailer"><?php render_aptitude_options('strategy_aptitude_trailer', $scraped_data['strategy_aptitude_trailer'] ?? 'C'); ?></select>
                         </div>
                     </div>
                 </div>
@@ -226,14 +264,18 @@ $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
                     <div class="skill-list-wrapper" style="max-height: 400px;">
                         <ul class="skill-list grid-layout" id="skill-list-container">
                             <?php foreach ($all_skills as $skill): ?>
-                                <li>
+                                <?php
+                                $is_checked = in_array($skill['id'], $selected_skill_ids);
+                                $is_selected_class = $is_checked ? 'selected' : '';
+                                ?>
+                                <li class="<?php echo $is_selected_class; ?>">
                                     <label>
-                                        <input type="checkbox" name="skill_ids[]" value="<?php echo $skill['id']; ?>">
+                                        <input type="checkbox" name="skill_ids[]" value="<?php echo $skill['id']; ?>" <?php if ($is_checked) echo 'checked'; ?>>
                                         <?php
                                             $text_class = '';
-                                            if ($skill['skill_type'] == 'レアスキル') { $text_class = 'text-rare'; } 
-                                            elseif ($skill['skill_type'] == '進化スキル') { $text_class = 'text-evolution'; }
-                                            elseif ($skill['skill_type'] == '固有スキル') { $text_class = 'text-rainbow'; }
+                                            if ($skill['skill_type'] == 'レアスキル') $text_class = 'text-rare'; 
+                                            elseif ($skill['skill_type'] == '進化スキル') $text_class = 'text-evolution';
+                                            elseif ($skill['skill_type'] == '固有スキル') $text_class = 'text-rainbow';
                                         ?>
                                         <span class="<?php echo $text_class; ?>"><?php echo htmlspecialchars($skill['skill_name']); ?></span>
                                     </label>
@@ -242,35 +284,48 @@ $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
                         </ul>
                     </div>
                 </div>
-                <button type="submit">この内容で登録する</button>
+                <div class="form-actions">
+                    <button type="submit" class="button-primary">この内容で登録する</button>
+                    <a href="index.php" class="back-link">キャンセル</a>
+                </div>
             </div>
         </div>
     </form>
-    <a href="index.php" class="back-link" style="margin-top: 24px;">&laquo; ウマ娘一覧に戻る</a>
 </div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('skill-list-container').addEventListener('change', e => {
-        if (e.target.type === 'checkbox') e.target.closest('li').classList.toggle('selected', e.target.checked);
+        if (e.target.type === 'checkbox') {
+            e.target.closest('li').classList.toggle('selected', e.target.checked);
+        }
     });
+
     function setupImagePreview(inputId, wrapperId, imgId) {
         const fileInput = document.getElementById(inputId);
+        if (!fileInput) return;
         const previewWrapper = document.getElementById(wrapperId);
         const imagePreview = document.getElementById(imgId);
         const placeholder = previewWrapper.querySelector('span');
         fileInput.addEventListener('change', function() {
             if (this.files && this.files[0]) {
-                imagePreview.src = URL.createObjectURL(this.files[0]);
-                imagePreview.style.display = 'block';
-                if (placeholder) placeholder.style.display = 'none';
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                    if (placeholder) placeholder.style.display = 'none';
+                }
+                reader.readAsDataURL(this.files[0]);
             }
         });
     }
     setupImagePreview('character_image_suit', 'image-preview-suit', 'image_preview_suit_img');
+
     const raritySelect = document.getElementById('rarity_select');
     function updateBorderColor() {
         const rarity = raritySelect.value;
-        document.getElementById('image-preview-suit').className = 'image-preview-wrapper rarity-' + rarity;
+        const previewWrapper = document.getElementById('image-preview-suit');
+        previewWrapper.className = 'image-preview-wrapper'; 
+        previewWrapper.classList.add('rarity-' + rarity);
     }
     raritySelect.addEventListener('change', updateBorderColor);
     updateBorderColor();
