@@ -66,6 +66,61 @@ function getRankFromElement($element) {
     }
     return null;
 }
+
+// ▼▼▼【追加】スキル関連の関数をimportから移植 ▼▼▼
+function getSkillIdByName($conn, $skill_name) {
+    $stmt = $conn->prepare("SELECT id FROM skills WHERE skill_name = ?");
+    $stmt->bind_param("s", $skill_name);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($result->num_rows > 0) {
+        $row = $result->fetch_assoc();
+        $stmt->close();
+        return $row['id'];
+    }
+    $stmt->close();
+    return null;
+}
+
+function registerOrUpdateSkill($conn, $skill_name, $skill_description, $skill_type, $distance_type, $strategy_type, $surface_type, $base_skill_id = null, $required_skill_points = null) {
+    // 1. スキルが既に存在するか確認
+    $stmt = $conn->prepare("SELECT id FROM skills WHERE skill_name = ?");
+    $stmt->bind_param("s", $skill_name);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $stmt->close();
+
+    if ($result->num_rows > 0) {
+        // 2. 存在する場合：UPDATEで情報を更新
+        $row = $result->fetch_assoc();
+        $existing_id = $row['id'];
+        
+        $stmt_update = $conn->prepare(
+            "UPDATE skills SET skill_description = ?, skill_type = ?, distance_type = ?, strategy_type = ?, surface_type = ?, base_skill_id = COALESCE(?, base_skill_id), required_skill_points = COALESCE(?, required_skill_points) WHERE id = ?"
+        );
+        $stmt_update->bind_param("sssssiii", $skill_description, $skill_type, $distance_type, $strategy_type, $surface_type, $base_skill_id, $required_skill_points, $existing_id);
+        $stmt_update->execute();
+        $stmt_update->close();
+        
+        return $existing_id;
+    } else {
+        // 3. 存在しない場合：INSERTで新規登録
+        $stmt_insert = $conn->prepare(
+            "INSERT INTO skills (skill_name, skill_description, skill_type, distance_type, strategy_type, surface_type, base_skill_id, required_skill_points) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        $stmt_insert->bind_param("ssssssii", $skill_name, $skill_description, $skill_type, $distance_type, $strategy_type, $surface_type, $base_skill_id, $required_skill_points);
+        
+        if ($stmt_insert->execute()) {
+            $new_id = $conn->insert_id;
+            $stmt_insert->close();
+            return $new_id;
+        } else {
+            $error = $stmt_insert->error;
+            $stmt_insert->close();
+            throw new Exception("スキル登録に失敗: " . $error);
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -219,7 +274,6 @@ try {
                     // 文字列を取得（この時点でGoutteがUTF-8に変換済み）
                     $raw_name = $name_node->text();
                     log_message("取得した生のテキスト: " . $raw_name, "info");
-                    log_message("生のテキストのバイト列: " . bin2hex($raw_name), "info");
 
                     // 1. 不要な空白と制御文字を除去
                     $clean_name = trim(preg_replace('/[\x00-\x1F\x7F\xA0]/u', '', $raw_name));
@@ -288,9 +342,6 @@ try {
                 
                 log_message("図鑑検索用名前: {$base_name}", "info");
 
-                // pokedex_mapの内容をデバッグ出力
-                log_message("利用可能な図鑑データ: " . implode(', ', array_keys($pokedex_map)), "info");
-
                 // 完全一致を試す
                 if (isset($pokedex_map[$base_name])) {
                     $pokedex_id = intval($pokedex_map[$base_name]);
@@ -320,14 +371,15 @@ try {
             $stats = [];
             $status_found = false;
             $growth_found = false;
+            $status_map = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
 
             // テーブルの処理（importから流用）
-            $char_crawler->filter('table')->each(function ($table) use (&$stats, &$status_found, &$growth_found) {
+            $char_crawler->filter('table')->each(function ($table) use (&$stats, &$status_found, &$growth_found, $status_map) {
                 $rows = $table->filter('tr');
                 $growth_values_accum = []; // 縦型テーブル用
                 $table_is_growth_vertical = false;
 
-                $rows->each(function ($row) use (&$stats, &$status_found, &$growth_found, &$growth_values_accum, &$table_is_growth_vertical) {
+                $rows->each(function ($row) use (&$stats, &$status_found, &$growth_found, &$growth_values_accum, &$table_is_growth_vertical, $status_map) {
                     $cells = $row->filter('td, th');
                     if ($cells->count() > 0) {
                         $row_text = '';
@@ -357,7 +409,6 @@ try {
                                 (preg_match('/(基礎|初期|ステータス|能力|星3)/u', $row_text) || 
                                  $numeric_values[0] > 50)) {
                                 
-                                $status_map = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
                                 foreach ($status_map as $index => $stat) {
                                     if (isset($numeric_values[$index])) {
                                         $stats['initial_' . $stat] = $numeric_values[$index];
@@ -379,7 +430,6 @@ try {
                             }
                             
                             if (count($growth_values) >= 5) {
-                                $status_map = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
                                 foreach ($status_map as $index => $stat) {
                                     if (isset($growth_values[$index])) {
                                         $stats['growth_rate_' . $stat] = $growth_values[$index];
@@ -471,9 +521,8 @@ try {
                 ];
             }
 
-            // デフォルト値設定
+            // デフォルト値設定（ステータス・成長率）
             if (!$status_found || !$growth_found) {
-                $status_map = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
                 foreach ($status_map as $stat) {
                     if (!isset($stats['initial_' . $stat])) {
                         $stats['initial_' . $stat] = 100;
@@ -484,124 +533,265 @@ try {
                 }
             }
 
-            // 画像の取得処理を修正（importから流用）
+            // 4. スキル処理（importから移植）
+            $character_skills = [];
+            $skills_data_list = [];
+
             try {
-                $image_node = $char_crawler->filter('img[alt*="のアイキャッチ"], img[src*="/chara"], img[src*="/character"]');
-                if ($image_node->count() > 0) {
-                    $relative_src = $image_node->first()->attr('data-original') ?: $image_node->first()->attr('src');
-                    $image_url = urljoin($link, $relative_src);
+                log_message("スキル情報の取得を開始します...", "info");
+                
+                $skill_nodes = $char_crawler->filter('ol.wd-skill-list li, ul.wd-skill-list li');
+                log_message("スキルノード数: " . $skill_nodes->count(), "info");
+
+                // スキル情報を配列に格納
+                $skill_nodes->each(function($node) use (&$skills_data_list) {
+                    $skill_data = [
+                        'name' => '', 'description' => '', 'type' => 'ノーマルスキル',
+                        'distance' => '', 'strategy' => '', 'surface' => '',
+                        'unlock_condition' => '初期', 'base_skill_name' => null,
+                        'required_skill_points' => null
+                    ];
+
+                    $head_node = $node->filter('._body ._head');
+                    $name_node = $head_node->filter('a');
+                    $desc_node = $node->filter('._body ._text');
+                    $skill_data['name'] = ($name_node->count() > 0) ? trim($name_node->text()) : '';
                     
-                    $upload_dir = __DIR__ . '/../uploads/characters/';
-                    if (!file_exists($upload_dir)) {
-                        mkdir($upload_dir, 0777, true);
+                    // 解放条件の取得（必要スキルポイント含む）
+                    $unlock_condition_found = false;
+                    
+                    // 1. class="_point"要素から最初に検索
+                    $point_node = $node->filter('._point');
+                    if ($point_node->count() > 0) {
+                        $point_text = $point_node->text();
+                        $cleaned_point_text = preg_replace('/^::before\s*/u', '', $point_text);
+                        
+                        if (preg_match('/(\d+)(?:pt|ポイント|P|point)?/ui', $cleaned_point_text, $matches)) {
+                            $skill_data['required_skill_points'] = (int)$matches[1];
+                            $skill_data['unlock_condition'] = $matches[1] . 'pt';
+                            $unlock_condition_found = true;
+                        }
                     }
                     
-                    $file_name = time() . '_suit_' . basename(parse_url($image_url, PHP_URL_PATH));
-                    $target_path = $upload_dir . $file_name;
-                    
-                    $image_content = @file_get_contents($image_url);
-                    if ($image_content !== false) {
-                        if (file_put_contents($target_path, $image_content)) {
-                            $image_url_suit = 'uploads/characters/' . $file_name;
-                            log_message("勝負服画像を保存しました: {$file_name}", "success");
-                            chmod($target_path, 0644);
+                    // 2. ヘッダー部分から検索
+                    if (!$unlock_condition_found && $head_node->count() > 0) {
+                        $head_text = $head_node->text();
+                        if (preg_match('/(\d+)(?:pt|ポイント|P|point)/ui', $head_text, $matches)) {
+                            $skill_data['required_skill_points'] = (int)$matches[1];
+                            $skill_data['unlock_condition'] = $matches[1] . 'pt';
+                            $unlock_condition_found = true;
+                        } elseif (preg_match('/(レベル\d+|Lv\.?\d+|\d+レベル)/u', $head_text, $matches)) {
+                            $skill_data['unlock_condition'] = $matches[1];
+                            $unlock_condition_found = true;
                         }
                     }
-                }
-            } catch (Exception $e) {
-                log_message("画像の取得に失敗: {$e->getMessage()}", "warning");
-            }
-            // 2. ステータスと成長率の取得を修正
-            $stats = [];
-            $status_found = false;
-            $growth_found = false;
-
-            // テーブルの処理（importから流用）
-            $char_crawler->filter('table')->each(function ($table) use (&$stats, &$status_found, &$growth_found) {
-                $rows = $table->filter('tr');
-                $growth_values_accum = []; // 縦型テーブル用
-                $table_is_growth_vertical = false;
-
-                $rows->each(function ($row) use (&$stats, &$status_found, &$growth_found, &$growth_values_accum, &$table_is_growth_vertical) {
-                    $cells = $row->filter('td, th');
-                    if ($cells->count() > 0) {
-                        $row_text = '';
-                        $cell_values = [];
+                    
+                    // 発動条件を説明文末尾の<>内から取得し、適性情報として利用
+                    if ($desc_node->count() > 0) {
+                        $full_text_for_desc = $desc_node->html();
+                        $parts = explode('<br>', $full_text_for_desc);
+                        $skill_data['description'] = trim(strip_tags(array_shift($parts))) ?: 'スキル効果の詳細は確認中です。';
+                        $full_text_for_conditions = $desc_node->text();
                         
-                        $cells->each(function ($cell, $cell_index) use (&$row_text, &$cell_values) {
-                            $text = trim($cell->text());
-                            $cell_values[] = $text;
-                            if ($cell_index == 0) {
-                                $row_text = $text;
-                            }
-                        });
+                        $condition_text = '';
                         
-                        // 初期ステータス行の判定
-                        if (!$status_found && count($cell_values) >= 6) {
-                            $numeric_count = 0;
-                            $numeric_values = [];
-                            
-                            for ($i = 1; $i < count($cell_values) && $i <= 5; $i++) {
-                                if (preg_match('/\d+/', $cell_values[$i], $matches)) {
-                                    $numeric_count++;
-                                    $numeric_values[] = (int)$matches[0];
-                                }
+                        // 発動条件取得（括弧内から）
+                        if (preg_match('/＜([^＞]+)＞/u', $full_text_for_conditions, $matches)) {
+                            $condition_text = trim($matches[1]);
+                        } elseif (preg_match('/<([^>]+)>/u', $full_text_for_conditions, $matches)) {
+                            $condition_text = trim($matches[1]);
+                        } elseif (preg_match('/（([^）]+)）/u', $full_text_for_conditions, $matches)) {
+                            $condition_candidate = trim($matches[1]);
+                            if (!preg_match('/^(\d+|レベル\d+|Lv\d+|\d+レベル|\d+(?:pt|ポイント|P))$/u', $condition_candidate)) {
+                                $condition_text = $condition_candidate;
                             }
-                            
-                            if ($numeric_count >= 5 && 
-                                (preg_match('/(基礎|初期|ステータス|能力|星3)/u', $row_text) || 
-                                 $numeric_values[0] > 50)) {
-                                
-                                $status_map = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
-                                foreach ($status_map as $index => $stat) {
-                                    if (isset($numeric_values[$index])) {
-                                        $stats['initial_' . $stat] = $numeric_values[$index];
-                                    }
-                                }
-                                $status_found = true;
-                                log_message("初期ステータス取得: " . implode(',', array_slice($numeric_values, 0, 5)), "success");
+                        } elseif (preg_match('/\(([^)]+)\)/u', $full_text_for_conditions, $matches)) {
+                            $condition_candidate = trim($matches[1]);
+                            if (!preg_match('/^(\d+|レベル\d+|Lv\d+|\d+レベル|\d+(?:pt|ポイント|P))$/u', $condition_candidate)) {
+                                $condition_text = $condition_candidate;
                             }
                         }
                         
-                        // 成長率行の判定
-                        if (!$growth_found && count($cell_values) >= 5 && preg_match('/(成長|%)/u', implode(' ', $cell_values))) {
-                            $growth_values = [];
-                            
-                            for ($i = 0; $i < count($cell_values); $i++) {
-                                if (preg_match('/(\d+(?:\.\d+)?)/', $cell_values[$i], $matches)) {
-                                    $growth_values[] = (float)$matches[1];
-                                }
+                        // 発動条件から適性を抽出（DB統一形式：カンマ区切り）
+                        if (!empty($condition_text)) {
+                            // 距離適性
+                            if (preg_match('/短距離[\/／]マイル/u', $condition_text)) {
+                                $skill_data['distance'] = '短距離,マイル';
+                            } elseif (preg_match('/マイル[\/／]中距離/u', $condition_text)) {
+                                $skill_data['distance'] = 'マイル,中距離';
+                            } elseif (preg_match('/中距離[\/／]長距離/u', $condition_text)) {
+                                $skill_data['distance'] = '中距離,長距離';
+                            } elseif (preg_match('/(短距離)/u', $condition_text)) {
+                                $skill_data['distance'] = '短距離';
+                            } elseif (preg_match('/(マイル)/u', $condition_text)) {
+                                $skill_data['distance'] = 'マイル';
+                            } elseif (preg_match('/(中距離)/u', $condition_text)) {
+                                $skill_data['distance'] = '中距離';
+                            } elseif (preg_match('/(長距離)/u', $condition_text)) {
+                                $skill_data['distance'] = '長距離';
                             }
                             
-                            if (count($growth_values) >= 5) {
-                                $status_map = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
-                                foreach ($status_map as $index => $stat) {
-                                    if (isset($growth_values[$index])) {
-                                        $stats['growth_rate_' . $stat] = $growth_values[$index];
-                                    }
-                                }
-                                $growth_found = true;
-                                log_message("成長率取得: " . implode(',', array_slice($growth_values, 0, 5)), "success");
+                            // 脚質適性
+                            if (preg_match('/逃げ[\/／]先行/u', $condition_text)) {
+                                $skill_data['strategy'] = '逃げ,先行';
+                            } elseif (preg_match('/先行[\/／]差し/u', $condition_text)) {
+                                $skill_data['strategy'] = '先行,差し';
+                            } elseif (preg_match('/差し[\/／]追込/u', $condition_text)) {
+                                $skill_data['strategy'] = '差し,追込';
+                            } elseif (preg_match('/(逃げ)/u', $condition_text)) {
+                                $skill_data['strategy'] = '逃げ';
+                            } elseif (preg_match('/(先行)/u', $condition_text)) {
+                                $skill_data['strategy'] = '先行';
+                            } elseif (preg_match('/(差し)/u', $condition_text)) {
+                                $skill_data['strategy'] = '差し';
+                            } elseif (preg_match('/(追込)/u', $condition_text)) {
+                                $skill_data['strategy'] = '追込';
+                            }
+                            
+                            // 馬場適性
+                            if (str_contains($condition_text, '芝') && str_contains($condition_text, 'ダート')) {
+                                $skill_data['surface'] = '芝,ダート';
+                            } elseif (preg_match('/(芝)/u', $condition_text)) {
+                                $skill_data['surface'] = '芝';
+                            } elseif (preg_match('/(ダート)/u', $condition_text)) {
+                                $skill_data['surface'] = 'ダート';
                             }
                         }
+                    } else {
+                        $skill_data['description'] = 'スキル効果の詳細は確認中です。';
+                        $skill_data['unlock_condition'] = '初期';
+                    }
+
+                    // スキルタイプの判定
+                    $li_class = $node->attr('class');
+                    if (str_contains((string)$li_class, 'unique')) {
+                        $skill_data['type'] = '固有スキル';
+                    } elseif (str_contains((string)$li_class, 'evo')) {
+                        $skill_data['type'] = '進化スキル';
+                        
+                        // ▼▼▼【修正】進化元スキル名を取得し、解放条件に設定 ▼▼▼
+                        $base_skill_found = false;
+                        
+                        // 1. _beforeクラス要素から取得（::before疑似要素のテキストも含む）
+                        $before_node = $node->filter('._before');
+                        if ($before_node->count() > 0) {
+                            $before_text = $before_node->text();
+                            // ::beforeテキストを除去して実際のテキストを取得
+                            $cleaned_text = preg_replace('/^::before\s*/', '', $before_text);
+                            if (!empty($cleaned_text)) {
+                                $skill_data['base_skill_name'] = trim($cleaned_text);
+                                // 進化スキルの解放条件は進化元スキル名に設定
+                                $skill_data['unlock_condition'] = '「' . $skill_data['base_skill_name'] . '」から進化';
+                                $base_skill_found = true;
+                            }
+                        }
+                        
+                        // 2. _noteセクションから取得
+                        if (!$base_skill_found) {
+                            $note_node = $node->filter('._body ._note');
+                            if ($note_node->count() > 0) {
+                                $note_text = $note_node->text();
+                                if (preg_match('/「(.+?)」(?:から|が)進化/u', $note_text, $matches)) {
+                                    $skill_data['base_skill_name'] = trim($matches[1]);
+                                    $skill_data['unlock_condition'] = '「' . $skill_data['base_skill_name'] . '」から進化';
+                                    $base_skill_found = true;
+                                }
+                            }
+                        }
+                        
+                        // 3. 説明文から取得
+                        if (!$base_skill_found && $desc_node->count() > 0) {
+                            $desc_text = $desc_node->text();
+                            if (preg_match('/「(.+?)」(?:から|が)進化/u', $desc_text, $matches)) {
+                                $skill_data['base_skill_name'] = trim($matches[1]);
+                                $skill_data['unlock_condition'] = '「' . $skill_data['base_skill_name'] . '」から進化';
+                                $base_skill_found = true;
+                            }
+                        }
+                        
+                        // 4. HTML構造全体から取得（最後の手段）
+                        if (!$base_skill_found) {
+                            $full_html = $node->html();
+                            if (preg_match('/class="_before"[^>]*>([^<]+)</i', $full_html, $matches)) {
+                                $extracted_text = trim(strip_tags($matches[1]));
+                                $cleaned_text = preg_replace('/^::before\s*/', '', $extracted_text);
+                                if (!empty($cleaned_text)) {
+                                    $skill_data['base_skill_name'] = $cleaned_text;
+                                    $skill_data['unlock_condition'] = '「' . $skill_data['base_skill_name'] . '」から進化';
+                                    $base_skill_found = true;
+                                }
+                            }
+                        }
+                        
+                        // デバッグ用：進化元スキルが見つからない場合の警告
+                        if (!$base_skill_found) {
+                            log_message("警告: 進化スキル「{$skill_data['name']}」の進化元スキルが検出できませんでした。", "warning");
+                        }
+                        
+                    } elseif (str_contains((string)$li_class, 'rare')) {
+                        $skill_data['type'] = 'レアスキル';
+                    }
+                    
+                    if (!empty($skill_data['name'])) {
+                        $skills_data_list[] = $skill_data;
                     }
                 });
-            });
 
-            // デフォルト値設定
-            if (!$status_found || !$growth_found) {
-                $status_map = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
-                foreach ($status_map as $stat) {
-                    if (!isset($stats['initial_' . $stat])) {
-                        $stats['initial_' . $stat] = 100;
+                // スキルをデータベースに登録・更新
+                foreach ($skills_data_list as $skill_data) {
+                    $base_skill_id = null;
+                    
+                    // 進化スキルの場合
+                    if ($skill_data['type'] === '進化スキル' && !empty($skill_data['base_skill_name'])) {
+                        $base_skill_id = getSkillIdByName($conn, $skill_data['base_skill_name']);
+                        
+                        if (!$base_skill_id) {
+                            $base_skill_id = registerOrUpdateSkill(
+                                $conn,
+                                $skill_data['base_skill_name'],
+                                '進化元スキルです。詳細は確認中です。',
+                                'ノーマルスキル',
+                                $skill_data['distance'],
+                                $skill_data['strategy'],
+                                $skill_data['surface'],
+                                null,
+                                null
+                            );
+                            log_message("進化元スキル「{$skill_data['base_skill_name']}」を新規作成 (ID:{$base_skill_id})", "info");
+                        }
                     }
-                    if (!isset($stats['growth_rate_' . $stat])) {
-                        $stats['growth_rate_' . $stat] = 0;
+        
+                    // スキル本体を登録
+                    $skill_id = registerOrUpdateSkill(
+                        $conn,
+                        $skill_data['name'],
+                        $skill_data['description'],
+                        $skill_data['type'],
+                        $skill_data['distance'],
+                        $skill_data['strategy'],
+                        $skill_data['surface'],
+                        $base_skill_id,
+                        $skill_data['required_skill_points']
+                    );
+                    
+                    if ($skill_id) {
+                        $character_skills[] = [
+                            'skill_id' => $skill_id,
+                            'unlock_condition' => $skill_data['unlock_condition']
+                        ];
+                        log_message("スキル「{$skill_data['name']}」を処理 (ID:{$skill_id})", "info");
                     }
                 }
+
+                log_message(count($character_skills) . "個のスキルを処理しました", "success");
+
+            } catch (Exception $e) {
+                log_message("スキル取得エラー: " . $e->getMessage(), "warning");
             }
 
-            // 画像の取得処理を修正（importから流用）
+            // 5. 画像の取得処理を修正（importから流用）
+            $image_url = '';
+            $image_url_suit = '';
             try {
                 $image_node = $char_crawler->filter('img[alt*="のアイキャッチ"], img[src*="/chara"], img[src*="/character"]');
                 if ($image_node->count() > 0) {
@@ -629,7 +819,7 @@ try {
                 log_message("画像の取得に失敗: {$e->getMessage()}", "warning");
             }
 
-            // 5. データベースに登録
+            // 6. データベースに登録
             $columns = [
                 'id', 'character_name', 'rarity', 'pokedex_id', 
                 'image_url', 'image_url_suit',
@@ -654,11 +844,7 @@ try {
 
             // バインドパラメータ用の変数を準備
             $rarity = 3; // デフォルト値を3に設定
-
-            // 図鑑IDがnullの場合は0を設定（MySQLではNULLが許可されていない場合用）
             $pokedex_id = ($pokedex_id !== null) ? intval($pokedex_id) : 0;
-
-            log_message("バインド前の図鑑ID: " . var_export($pokedex_id, true), "info");
 
             // ステータス変数の準備
             $initial_speed = intval($stats['initial_speed'] ?? 100);
@@ -674,7 +860,7 @@ try {
             $growth_guts = floatval($stats['growth_rate_guts'] ?? 0);
             $growth_wisdom = floatval($stats['growth_rate_wisdom'] ?? 0);
             
-            // バインドパラメータ用の変数を準備
+            // 適性変数の準備
             $apt_turf = $aptitudes['surface_aptitude_turf'];
             $apt_dirt = $aptitudes['surface_aptitude_dirt'];
             $apt_short = $aptitudes['distance_aptitude_short'];
@@ -693,7 +879,7 @@ try {
                 $rarity,          // rarity (i) - デフォルト値3を使用
                 $pokedex_id,      // pokedex_id (i)
                 $image_url,       // image_url (s)
-                $image_url_suit,       // image_url_suit (s)
+                $image_url_suit,  // image_url_suit (s)
                 $initial_speed,   // initial_speed (i)
                 $initial_stamina, // initial_stamina (i)
                 $initial_power,   // initial_power (i)
@@ -717,8 +903,16 @@ try {
             );
 
             if ($stmt->execute()) {
+                // キャラクタースキル関係を登録
+                foreach ($character_skills as $char_skill) {
+                    $cs_stmt = $conn->prepare("INSERT INTO character_skills (character_id, skill_id, unlock_condition) VALUES (?, ?, ?)");
+                    $cs_stmt->bind_param("iis", $next_id, $char_skill['skill_id'], $char_skill['unlock_condition']);
+                    $cs_stmt->execute();
+                    $cs_stmt->close();
+                }
+                
                 $conn->commit();  // 成功時にコミット
-                log_message("{$character_name} を登録しました (ID: {$next_id})", "success");
+                log_message("{$character_name} を登録しました (ID: {$next_id}, スキル数: " . count($character_skills) . ")", "success");
                 $existing_characters[] = $character_name;
                 $next_id++;
                 $import_count++;

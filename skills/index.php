@@ -1,7 +1,7 @@
 <?php
 $page_title = 'スキル一覧';
 $current_page = 'skills';
-$base_path = '../'; // このページから見たときのパスの基準
+$base_path = '../'; // このページから見たときのパスの基点
 
 // --- フォーム表示用の選択肢を定義 ---
 $sort_options = ['id_desc' => '新着順', 'name_asc' => 'あいうえお順'];
@@ -19,7 +19,7 @@ $filter_surface = $_GET['surface'] ?? '';
 $sort_key = $_GET['sort'] ?? 'id_desc';
 
 // --- ここからHTMLの出力 ---
-include '../templates/header.php'; // 共通ヘッダーを読み込む
+require_once __DIR__ . '/../templates/header.php'; // 共通ヘッダーを読み込む
 ?>
 
 <div class="container full-width">
@@ -37,13 +37,15 @@ include '../templates/header.php'; // 共通ヘッダーを読み込む
         
         <div class="filter-container">
             <div class="filter-group">
-                <label for="search">スキル名:</label>
+                <label for="search">スキル名</label>
                 <input type="text" name="search" id="search" value="<?php echo htmlspecialchars($search_keyword); ?>" placeholder="ひらがなでも検索可能">
             </div>
             <div class="filter-group">
-                <label for="sort">並べ替え:</label>
+                <label for="sort">並べ替え</label>
                 <select name="sort" id="sort">
-                    <?php foreach ($sort_options as $key => $text): ?><option value="<?php echo $key; ?>" <?php if ($key === $sort_key) echo 'selected'; ?>><?php echo htmlspecialchars($text); ?></option><?php endforeach; ?>
+                    <?php foreach ($sort_options as $key => $text): ?>
+                        <option value="<?php echo $key; ?>" <?php if ($key === $sort_key) echo 'selected'; ?>><?php echo htmlspecialchars($text); ?></option>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <a href="index.php" class="back-link">リセット</a>
@@ -61,7 +63,9 @@ include '../templates/header.php'; // 共通ヘッダーを読み込む
                     <label for="distance">距離:</label>
                     <select id="distance" name="distance">
                         <option value="">すべて</option>
-                        <?php foreach($distance_options as $option): ?><option value="<?php echo $option; ?>" <?php if($filter_distance == $option) echo 'selected'; ?>><?php echo $option; ?></option><?php endforeach; ?>
+                        <?php foreach($distance_options as $option): ?>
+                            <option value="<?php echo $option; ?>" <?php if($filter_distance == $option) echo 'selected'; ?>><?php echo $option; ?></option>
+                        <?php endforeach; ?>
                         <option value="none" <?php if($filter_distance == 'none') echo 'selected'; ?>>指定なし</option>
                     </select>
                 </div>
@@ -69,15 +73,19 @@ include '../templates/header.php'; // 共通ヘッダーを読み込む
                     <label for="strategy">脚質:</label>
                     <select id="strategy" name="strategy">
                         <option value="">すべて</option>
-                        <?php foreach($strategy_options as $option): ?><option value="<?php echo $option; ?>" <?php if($filter_strategy == $option) echo 'selected'; ?>><?php echo $option; ?></option><?php endforeach; ?>
+                        <?php foreach($strategy_options as $option): ?>
+                            <option value="<?php echo $option; ?>" <?php if($filter_strategy == $option) echo 'selected'; ?>><?php echo $option; ?></option>
+                        <?php endforeach; ?>
                         <option value="none" <?php if($filter_strategy == 'none') echo 'selected'; ?>>指定なし</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="surface">馬場適性:</label>
+                    <label for="surface">バ場適性:</label>
                     <select id="surface" name="surface">
                         <option value="">すべて</option>
-                        <?php foreach($surface_options as $option): ?><option value="<?php echo $option; ?>" <?php if($filter_surface == $option) echo 'selected'; ?>><?php echo $option; ?></option><?php endforeach; ?>
+                        <?php foreach($surface_options as $option): ?>
+                            <option value="<?php echo $option; ?>" <?php if($filter_surface == $option) echo 'selected'; ?>><?php echo $option; ?></option>
+                        <?php endforeach; ?>
                         <option value="none" <?php if($filter_surface == 'none') echo 'selected'; ?>>指定なし</option>
                     </select>
                 </div>
@@ -85,7 +93,9 @@ include '../templates/header.php'; // 共通ヘッダーを読み込む
                     <label for="type">スキルタイプ:</label>
                     <select id="type" name="type">
                         <option value="">すべて</option>
-                        <?php foreach($skill_type_options as $option): ?><option value="<?php echo $option; ?>" <?php if($filter_type == $option) echo 'selected'; ?>><?php echo $option; ?></option><?php endforeach; ?>
+                        <?php foreach($skill_type_options as $option): ?>
+                            <option value="<?php echo $option; ?>" <?php if($filter_type == $option) echo 'selected'; ?>><?php echo $option; ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <button type="button" id="apply-advanced-filter" class="back-link" style="width: 100%; margin-top: 15px;">閉じる</button>
@@ -96,7 +106,7 @@ include '../templates/header.php'; // 共通ヘッダーを読み込む
     
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // （JavaScript部分は変更なし）
+    // JavaScript部分は変更なし！
     const filterForm = document.getElementById('filterForm');
     const cardGrid = document.getElementById('skill-card-grid');
     const activeFiltersContainer = document.getElementById('active-filters-container');
@@ -153,5 +163,5 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <?php
-include '../templates/footer.php'; // 共通フッターを読み込む
+require_once __DIR__ . '/../templates/footer.php'; // 共通フッターを読み込む
 ?>

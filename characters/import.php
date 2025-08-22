@@ -26,8 +26,8 @@ function urljoin($base, $relative) {
     return "$scheme://$host$absolute_path";
 }
 
-// スキル登録関数
-function registerSkillIfNotExists($conn, $skill_name, $skill_description, $skill_type, $distance_type, $strategy_type, $surface_type) {
+// ▼▼▼【重要修正】スキル名からIDを検索するヘルパー関数 ▼▼▼
+function getSkillIdByName($conn, $skill_name) {
     $stmt = $conn->prepare("SELECT id FROM skills WHERE skill_name = ?");
     $stmt->bind_param("s", $skill_name);
     $stmt->execute();
@@ -36,22 +36,50 @@ function registerSkillIfNotExists($conn, $skill_name, $skill_description, $skill
         $row = $result->fetch_assoc();
         $stmt->close();
         return $row['id'];
-    } else {
-        $stmt->close();
-        $stmt = $conn->prepare("INSERT INTO skills (skill_name, skill_description, skill_type, distance_type, strategy_type, surface_type) VALUES (?, ?, ?, ?, ?, ?)");
-        if ($stmt === false) {
-             throw new Exception("DB prepare failed: " . $conn->error);
-        }
-        $stmt->bind_param("ssssss", $skill_name, $skill_description, $skill_type, $distance_type, $strategy_type, $surface_type);
+    }
+    $stmt->close();
+    return null;
+}
+
+// ▼▼▼【重要修正】スキルを「登録または更新」する関数のバインドパラメータ修正 ▼▼▼
+function registerOrUpdateSkill($conn, $skill_name, $skill_description, $skill_type, $distance_type, $strategy_type, $surface_type, $base_skill_id = null, $required_skill_points = null) {
+    // 1. スキルが既に存在するか確認
+    $stmt = $conn->prepare("SELECT id FROM skills WHERE skill_name = ?");
+    $stmt->bind_param("s", $skill_name);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $stmt->close();
+
+    if ($result->num_rows > 0) {
+        // 2. 存在する場合：UPDATEで情報を更新
+        $row = $result->fetch_assoc();
+        $existing_id = $row['id'];
         
-        if ($stmt->execute()) {
-            $skill_id = $conn->insert_id;
-            $stmt->close();
-            return $skill_id;
+        $stmt_update = $conn->prepare(
+            "UPDATE skills SET skill_description = ?, skill_type = ?, distance_type = ?, strategy_type = ?, surface_type = ?, base_skill_id = COALESCE(?, base_skill_id), required_skill_points = COALESCE(?, required_skill_points) WHERE id = ?"
+        );
+        // ▼▼▼【修正】バインドパラメータの型を修正（iを追加）▼▼▼
+        $stmt_update->bind_param("sssssiii", $skill_description, $skill_type, $distance_type, $strategy_type, $surface_type, $base_skill_id, $required_skill_points, $existing_id);
+        $stmt_update->execute();
+        $stmt_update->close();
+        
+        return $existing_id;
+    } else {
+        // 3. 存在しない場合：INSERTで新規登録
+        $stmt_insert = $conn->prepare(
+            "INSERT INTO skills (skill_name, skill_description, skill_type, distance_type, strategy_type, surface_type, base_skill_id, required_skill_points) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        // ▼▼▼【修正】バインドパラメータの型を修正（iを追加）▼▼▼
+        $stmt_insert->bind_param("ssssssii", $skill_name, $skill_description, $skill_type, $distance_type, $strategy_type, $surface_type, $base_skill_id, $required_skill_points);
+        
+        if ($stmt_insert->execute()) {
+            $new_id = $conn->insert_id;
+            $stmt_insert->close();
+            return $new_id;
         } else {
-            $error = $stmt->error;
-            $stmt->close();
-            throw new Exception("スキル登録に失敗しました: " . $error);
+            $error = $stmt_insert->error;
+            $stmt_insert->close();
+            throw new Exception("スキル登録に失敗: " . $error);
         }
     }
 }
@@ -336,79 +364,490 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
             if ($debug_mode) $debug_info .= "<br><strong>--- スキル情報の取得開始 ---</strong><br>";
             
             $scraped_data['character_skills'] = [];
+            $skills_data_list = []; // スキル情報を一時的に保持する配列
 
             $skill_nodes = $crawler->filter('ol.wd-skill-list li, ul.wd-skill-list li');
             
             if ($debug_mode && $skill_nodes->count() === 0) {
-                $debug_info .= "<strong style='color:red;'>警告: スキルリストが見つかりませんでした。('ol.wd-skill-list li, ul.wd-skill-list li')</strong><br>";
+                $debug_info .= "<strong style='color:red;'>警告: スキルリストが見つかりませんでした。</strong><br>";
             }
 
-            $skill_nodes->each(function($node) use (&$scraped_data, $conn, &$debug_info, $debug_mode) {
-                $skill_name = '';
-                $skill_description = '';
-                $unlock_condition = '初期';
-                $distance_type = '';
-                $strategy_type = '';
-                $surface_type = '';
-                $skill_type = 'ノーマル';
+            // ▼▼▼【重要修正】1回目のループで、全スキルの情報を配列に格納（解放条件・必要スキルポイント追加） ▼▼▼
+            $skill_nodes->each(function($node) use (&$skills_data_list, $debug_mode, &$debug_info) {
+                $skill_data = [
+                    'name' => '', 'description' => '', 'type' => 'ノーマルスキル',
+                    'distance' => '', 'strategy' => '', 'surface' => '',
+                    'unlock_condition' => '初期', 'base_skill_name' => null,
+                    'required_skill_points' => null // 必要スキルポイント追加
+                ];
 
                 $head_node = $node->filter('._body ._head');
                 $name_node = $head_node->filter('a');
                 $desc_node = $node->filter('._body ._text');
-
-                if ($name_node->count() > 0) {
-                    $skill_name = trim($name_node->text());
-                    
-                    $full_head_text = trim($head_node->text());
-                    $condition_text = trim(str_replace($skill_name, '', $full_head_text));
-                    $unlock_condition = trim($condition_text, " ()");
-                    if (empty($unlock_condition)) {
-                        $unlock_condition = '初期';
-                    }
-                }
+                $skill_data['name'] = ($name_node->count() > 0) ? trim($name_node->text()) : '';
                 
-                if ($desc_node->count() > 0) {
-                    $full_text_for_desc = $desc_node->html();
-                    $parts = explode('<br>', $full_text_for_desc);
-                    $skill_description = trim(strip_tags(array_shift($parts)));
-                    $full_text_for_conditions = $desc_node->text();
-
-                    if (preg_match('/(芝)/u', $full_text_for_conditions)) $surface_type = '芝';
-                    if (preg_match('/(ダート)/u', $full_text_for_conditions)) $surface_type = 'ダート';
-                    if (str_contains($full_text_for_conditions, '芝') && str_contains($full_text_for_conditions, 'ダート')) $surface_type = '芝/ダート';
-                    if (preg_match('/(短距離)/u', $full_text_for_conditions)) $distance_type = '短距離';
-                    if (preg_match('/(マイル)/u', $full_text_for_conditions)) $distance_type = 'マイル';
-                    if (preg_match('/(中距離)/u', $full_text_for_conditions)) $distance_type = '中距離';
-                    if (preg_match('/(長距離)/u', $full_text_for_conditions)) $distance_type = '長距離';
-                    if (preg_match('/(逃げ)/u', $full_text_for_conditions)) $strategy_type = '逃げ';
-                    if (preg_match('/(先行)/u', $full_text_for_conditions)) $strategy_type = '先行';
-                    if (preg_match('/(差し)/u', $full_text_for_conditions)) $strategy_type = '差し';
-                    if (preg_match('/(追込)/u', $full_text_for_conditions)) $strategy_type = '追込';
-                }
-
-                if (!empty($skill_name)) {
-                    if (empty($skill_description)) $skill_description = 'スキル効果の詳細は確認中です。';
+                // ▼▼▼【修正】解放条件の取得（必要スキルポイント含む）- 検索範囲を拡大 ▼▼▼
+                $unlock_condition_found = false;
+                
+                // 0. class="_point"要素から最初に検索（最も確実）
+                $point_node = $node->filter('._point');
+                if ($point_node->count() > 0) {
+                    $point_text = $point_node->text();
                     
-                    // レア度はご自身で解決されたとのことなので、ここでは「ノーマル」で統一します。
-                    // 必要に応じて、ご自身で実装されたレア度判別ロジックをここに組み込んでください。
-                    $li_class = $node->attr('class');
-                    if (str_contains((string)$li_class, 'unique')) $skill_type = '固有スキル';
-                    elseif (str_contains((string)$li_class, 'evo')) $skill_type = '進化スキル';
-                    elseif (str_contains((string)$li_class, 'rare')) $skill_type = 'レアスキル';
+                    // ::beforeテキストを除去してから数値を抽出
+                    $cleaned_point_text = preg_replace('/^::before\s*/u', '', $point_text);
                     
-                    $skill_id = registerSkillIfNotExists($conn, $skill_name, $skill_description, $skill_type, $distance_type, $strategy_type, $surface_type);
-                    
-                    if ($skill_id) {
-                        $scraped_data['character_skills'][] = [
-                            'skill_id' => $skill_id,
-                            'unlock_condition' => $unlock_condition
-                        ];
+                    if (preg_match('/(\d+)(?:pt|ポイント|P|point)?/ui', $cleaned_point_text, $matches)) {
+                        $skill_data['required_skill_points'] = (int)$matches[1];
+                        $skill_data['unlock_condition'] = $matches[1] . 'pt';
+                        $unlock_condition_found = true;
                         if ($debug_mode) {
-                            $debug_info .= "スキル「{$skill_name}」(ID:{$skill_id}) を解放条件「{$unlock_condition}」タイプ「{$skill_type}」で取得<br>";
+                            $debug_info .= "✅ 解放条件（必要スキルポイント）を._pointから取得: {$skill_data['required_skill_points']}pt (元テキスト: 「{$point_text}」)<br>";
                         }
                     }
                 }
+                
+                // 1. ヘッダー部分から解放条件を検索
+                if ($head_node->count() > 0) {
+                    $head_text = $head_node->text();
+                    
+                    // 必要スキルポイントのパターンを検索（より広範囲のパターン）
+                    if (preg_match('/(\d+)(?:pt|ポイント|P|point)/ui', $head_text, $matches)) {
+                        $skill_data['required_skill_points'] = (int)$matches[1];
+                        $skill_data['unlock_condition'] = $matches[1] . 'pt';
+                        $unlock_condition_found = true;
+                        if ($debug_mode) {
+                            $debug_info .= "✅ 解放条件（必要スキルポイント）をヘッダーから取得: {$skill_data['required_skill_points']}pt<br>";
+                        }
+                    }
+                    // レベル条件の検索
+                    elseif (preg_match('/(レベル\d+|Lv\.?\d+|\d+レベル)/u', $head_text, $matches)) {
+                        $skill_data['unlock_condition'] = $matches[1];
+                        $unlock_condition_found = true;
+                        if ($debug_mode) {
+                            $debug_info .= "✅ 解放条件（レベル）をヘッダーから取得: {$skill_data['unlock_condition']}<br>";
+                        }
+                    }
+                }
+                
+                // 2. View要素やボタン周辺から解放条件を検索
+                if (!$unlock_condition_found) {
+                    $view_nodes = $node->filter('.view, ._view, [class*="view"], .button, .btn, ._button');
+                    $view_nodes->each(function($view_node) use (&$skill_data, &$unlock_condition_found, $debug_mode, &$debug_info) {
+                        if ($unlock_condition_found) return;
+                        
+                        $view_text = $view_node->text();
+                        
+                        // 必要スキルポイントのパターンを検索
+                        if (preg_match('/(\d+)(?:pt|ポイント|P|point)/ui', $view_text, $matches)) {
+                            $skill_data['required_skill_points'] = (int)$matches[1];
+                            $skill_data['unlock_condition'] = $matches[1] . 'pt';
+                            $unlock_condition_found = true;
+                            if ($debug_mode) {
+                                $debug_info .= "✅ 解放条件（必要スキルポイント）をView要素から取得: {$skill_data['required_skill_points']}pt<br>";
+                            }
+                        }
+                        // レベル条件の検索
+                        elseif (preg_match('/(レベル\d+|Lv\.?\d+|\d+レベル)/u', $view_text, $matches)) {
+                            $skill_data['unlock_condition'] = $matches[1];
+                            $unlock_condition_found = true;
+                            if ($debug_mode) {
+                                $debug_info .= "✅ 解放条件（レベル）をView要素から取得: {$skill_data['unlock_condition']}<br>";
+                            }
+                        }
+                    });
+                }
+                
+                // 3. ノード全体のHTMLから解放条件を検索（最後の手段）
+                if (!$unlock_condition_found) {
+                    $full_html = $node->html();
+                    
+                    // 必要スキルポイントのパターンを検索（より広範囲のパターン）
+                    if (preg_match('/(\d+)(?:pt|ポイント|P|point)/ui', $full_html, $matches)) {
+                        $skill_data['required_skill_points'] = (int)$matches[1];
+                        $skill_data['unlock_condition'] = $matches[1] . 'pt';
+                        $unlock_condition_found = true;
+                        if ($debug_mode) {
+                            $debug_info .= "✅ 解放条件（必要スキルポイント）をHTML全体から取得: {$skill_data['required_skill_points']}pt<br>";
+                        }
+                    }
+                    // レベル条件の検索
+                    elseif (preg_match('/(レベル\d+|Lv\.?\d+|\d+レベル)/u', $full_html, $matches)) {
+                        $skill_data['unlock_condition'] = $matches[1];
+                        $unlock_condition_found = true;
+                        if ($debug_mode) {
+                            $debug_info .= "✅ 解放条件（レベル）をHTML全体から取得: {$skill_data['unlock_condition']}<br>";
+                        }
+                    }
+                }
+                
+                // ▼▼▼【修正】より広範囲の検索（データ属性・classなど）▼▼▼
+                if (!$unlock_condition_found) {
+                    // ._pointクラス要素から再検索（念のため）
+                    $all_point_nodes = $node->filter('*[class*="point"]');
+                    $all_point_nodes->each(function($point_element) use (&$skill_data, &$unlock_condition_found, $debug_mode, &$debug_info) {
+                        if ($unlock_condition_found) return;
+                        
+                        $element_text = $point_element->text();
+                        // ::beforeを除去
+                        $cleaned_text = preg_replace('/^::before\s*/u', '', $element_text);
+                        
+                        if (preg_match('/(\d+)(?:pt|ポイント|P|point)?/ui', $cleaned_text, $matches)) {
+                            $skill_data['required_skill_points'] = (int)$matches[1];
+                            $skill_data['unlock_condition'] = $matches[1] . 'pt';
+                            $unlock_condition_found = true;
+                            if ($debug_mode) {
+                                $class_name = $point_element->attr('class');
+                                $debug_info .= "✅ 解放条件（必要スキルポイント）をclass=\"{$class_name}\"要素から取得: {$skill_data['required_skill_points']}pt (元テキスト: 「{$element_text}」)<br>";
+                            }
+                        }
+                    });
+                    
+                    // data属性から検索
+                    if (!$unlock_condition_found) {
+                        $data_skill_points = $node->attr('data-skill-points') ?: $node->attr('data-points');
+                        if ($data_skill_points && is_numeric($data_skill_points)) {
+                            $skill_data['required_skill_points'] = (int)$data_skill_points;
+                            $skill_data['unlock_condition'] = $data_skill_points . 'pt';
+                            $unlock_condition_found = true;
+                            if ($debug_mode) {
+                                $debug_info .= "✅ 解放条件（必要スキルポイント）をdata属性から取得: {$skill_data['required_skill_points']}pt<br>";
+                            }
+                        }
+                    }
+                    
+                    // class名からパターン検索
+                    if (!$unlock_condition_found) {
+                        $class_attr = $node->attr('class');
+                        if ($class_attr && preg_match('/(?:skill|point)[-_](\d+)/i', $class_attr, $matches)) {
+                            $skill_data['required_skill_points'] = (int)$matches[1];
+                            $skill_data['unlock_condition'] = $matches[1] . 'pt';
+                            $unlock_condition_found = true;
+                            if ($debug_mode) {
+                                $debug_info .= "✅ 解放条件（必要スキルポイント）をclass属性から取得: {$skill_data['required_skill_points']}pt<br>";
+                            }
+                        }
+                    }
+                }
+                
+                if ($debug_mode && !$unlock_condition_found) {
+                    $debug_info .= "⚠️ 解放条件（必要スキルポイント）が見つかりませんでした<br>";
+                    // デバッグ用：._pointクラス要素の詳細を表示
+                    $point_debug = $node->filter('._point');
+                    if ($point_debug->count() > 0) {
+                        $debug_info .= "🔍 ._point要素のテキスト: 「" . htmlspecialchars($point_debug->text()) . "」<br>";
+                        $debug_info .= "🔍 ._point要素のHTML: " . htmlspecialchars($point_debug->html()) . "<br>";
+                    }
+                    // デバッグ用：ノードのHTMLを一部表示
+                    $debug_html = substr($node->html(), 0, 500);
+                    $debug_info .= "🔍 ノードHTML（先頭500文字）: " . htmlspecialchars($debug_html) . "...<br>";
+                }
+                
+                // ▼▼▼【修正】発動条件を説明文末尾の<>内から取得し、適性情報として利用 ▼▼▼
+                if ($desc_node->count() > 0) {
+                    $full_text_for_desc = $desc_node->html();
+                    $parts = explode('<br>', $full_text_for_desc);
+                    $skill_data['description'] = trim(strip_tags(array_shift($parts))) ?: 'スキル効果の詳細は確認中です。';
+                    $full_text_for_conditions = $desc_node->text();
+                    
+                    // 発動条件を説明文の末尾から取得（適性情報として使用）
+                    if ($debug_mode) {
+                        $debug_info .= "==== 発動条件取得デバッグ ====<br>";
+                        $debug_info .= "スキル名: 「{$skill_data['name']}」<br>";
+                        $debug_info .= "説明文全文: 「{$full_text_for_conditions}」<br>";
+                    }
+                    
+                    $condition_text = ''; // 実際の発動条件テキストを格納
+                    
+                    // 1. 全角の＜＞で囲まれた部分を抽出（説明文から）
+                    if (preg_match('/＜([^＞]+)＞/u', $full_text_for_conditions, $matches)) {
+                        $condition_text = trim($matches[1]);
+                        if ($debug_mode) {
+                            $debug_info .= "✅ 発動条件を説明文内の全角＜＞から取得: 「{$condition_text}」<br>";
+                        }
+                    }
+                    // 2. 半角の<>で囲まれた部分を抽出（説明文から）
+                    elseif (preg_match('/<([^>]+)>/u', $full_text_for_conditions, $matches)) {
+                        $condition_text = trim($matches[1]);
+                        if ($debug_mode) {
+                            $debug_info .= "✅ 発動条件を説明文内の半角<>から取得: 「{$condition_text}」<br>";
+                        }
+                    }
+                    // 3. 全角の（）で囲まれた部分を抽出（説明文から）
+                    elseif (preg_match('/（([^）]+)）/u', $full_text_for_conditions, $matches)) {
+                        $condition_candidate = trim($matches[1]);
+                        // レベル表記やスキルポイントは除外（これらは解放条件）
+                        if (!preg_match('/^(\d+|レベル\d+|Lv\d+|\d+レベル|\d+(?:pt|ポイント|P))$/u', $condition_candidate)) {
+                            $condition_text = $condition_candidate;
+                            if ($debug_mode) {
+                                $debug_info .= "✅ 発動条件を説明文内の全角（）から取得: 「{$condition_text}」<br>";
+                            }
+                        } else {
+                            if ($debug_mode) {
+                                $debug_info .= "❌ 全角（）内が除外対象「{$condition_candidate}」のため無視<br>";
+                            }
+                        }
+                    }
+                    // 4. 半角の()で囲まれた部分を抽出（説明文から）
+                    elseif (preg_match('/\(([^)]+)\)/u', $full_text_for_conditions, $matches)) {
+                        $condition_candidate = trim($matches[1]);
+                        // レベル表記やスキルポイントは除外（これらは解放条件）
+                        if (!preg_match('/^(\d+|レベル\d+|Lv\d+|\d+レベル|\d+(?:pt|ポイント|P))$/u', $condition_candidate)) {
+                            $condition_text = $condition_candidate;
+                            if ($debug_mode) {
+                                $debug_info .= "✅ 発動条件を説明文内の半角()から取得: 「{$condition_text}」<br>";
+                            }
+                        } else {
+                            if ($debug_mode) {
+                                $debug_info .= "❌ 半角()内が除外対象「{$condition_candidate}」のため無視<br>";
+                            }
+                        }
+                    }
+                    // 5. 見つからない場合
+                    else {
+                        if ($debug_mode) {
+                            $debug_info .= "❌ 説明文内で発動条件が検出できませんでした<br>";
+                        }
+                    }
+                    
+                    if ($debug_mode) {
+                        $debug_info .= "🔍 発動条件テキスト: 「{$condition_text}」<br>";
+                    }
+                    
+                    // ▼▼▼【重要修正】発動条件から適性情報のみを抽出（解放条件には保存しない） ▼▼▼
+                    if (!empty($condition_text)) {
+                        // 距離適性の取得（発動条件テキストから）- DB統一形式でカンマ区切り
+                        if (preg_match('/短距離[\/／]マイル/u', $condition_text)) {
+                            $skill_data['distance'] = '短距離,マイル';
+                        } elseif (preg_match('/マイル[\/／]中距離/u', $condition_text)) {
+                            $skill_data['distance'] = 'マイル,中距離';
+                        } elseif (preg_match('/中距離[\/／]長距離/u', $condition_text)) {
+                            $skill_data['distance'] = '中距離,長距離';
+                        } elseif (preg_match('/短距離[\/／]中距離/u', $condition_text)) {
+                            $skill_data['distance'] = '短距離,中距離';
+                        } elseif (preg_match('/マイル[\/／]長距離/u', $condition_text)) {
+                            $skill_data['distance'] = 'マイル,長距離';
+                        } elseif (preg_match('/(短距離)/u', $condition_text)) {
+                            $skill_data['distance'] = '短距離';
+                        } elseif (preg_match('/(マイル)/u', $condition_text)) {
+                            $skill_data['distance'] = 'マイル';
+                        } elseif (preg_match('/(中距離)/u', $condition_text)) {
+                            $skill_data['distance'] = '中距離';
+                        } elseif (preg_match('/(長距離)/u', $condition_text)) {
+                            $skill_data['distance'] = '長距離';
+                        }
+                        
+                        // 脚質適性の取得（発動条件テキストから）- DB統一形式でカンマ区切り
+                        if (preg_match('/逃げ[\/／]先行/u', $condition_text)) {
+                            $skill_data['strategy'] = '逃げ,先行';
+                        } elseif (preg_match('/先行[\/／]差し/u', $condition_text)) {
+                            $skill_data['strategy'] = '先行,差し';
+                        } elseif (preg_match('/差し[\/／]追込/u', $condition_text)) {
+                            $skill_data['strategy'] = '差し,追込';
+                        } elseif (preg_match('/逃げ[\/／]差し/u', $condition_text)) {
+                            $skill_data['strategy'] = '逃げ,差し';
+                        } elseif (preg_match('/先行[\/／]追込/u', $condition_text)) {
+                            $skill_data['strategy'] = '先行,追込';
+                        } elseif (preg_match('/逃げ[\/／]追込/u', $condition_text)) {
+                            $skill_data['strategy'] = '逃げ,追込';
+                        } elseif (preg_match('/(逃げ)/u', $condition_text)) {
+                            $skill_data['strategy'] = '逃げ';
+                        } elseif (preg_match('/(先行)/u', $condition_text)) {
+                            $skill_data['strategy'] = '先行';
+                        } elseif (preg_match('/(差し)/u', $condition_text)) {
+                            $skill_data['strategy'] = '差し';
+                        } elseif (preg_match('/(追込)/u', $condition_text)) {
+                            $skill_data['strategy'] = '追込';
+                        }
+                        
+                        // 馬場適性の取得（発動条件テキストから）- DB統一形式でカンマ区切り
+                        if (preg_match('/芝[\/／]ダート/u', $condition_text) || 
+                            (str_contains($condition_text, '芝') && str_contains($condition_text, 'ダート'))) {
+                            $skill_data['surface'] = '芝,ダート';
+                        } elseif (preg_match('/(芝)/u', $condition_text)) {
+                            $skill_data['surface'] = '芝';
+                        } elseif (preg_match('/(ダート)/u', $condition_text)) {
+                            $skill_data['surface'] = 'ダート';
+                        }
+                        
+                        if ($debug_mode) {
+                            $debug_info .= "📍 適性情報（発動条件から抽出・DB統一形式） - 距離: 「{$skill_data['distance']}」 脚質: 「{$skill_data['strategy']}」 馬場: 「{$skill_data['surface']}」<br>";
+                        }
+                    } else {
+                        if ($debug_mode) {
+                            $debug_info .= "⚠️ 発動条件テキストが空のため、適性情報は設定しません<br>";
+                        }
+                    }
+                    
+                } else {
+                    // 説明文が見つからない場合のデフォルト値
+                    $skill_data['description'] = 'スキル効果の詳細は確認中です。';
+                    if ($debug_mode) {
+                        $debug_info .= "❌ 説明文ノードが見つからないため初期値を設定<br>";
+                    }
+                }
+
+                // スキルタイプの判定と進化スキルの解放条件設定
+                $li_class = $node->attr('class');
+                if (str_contains((string)$li_class, 'unique')) {
+                    $skill_data['type'] = '固有スキル';
+                } elseif (str_contains((string)$li_class, 'evo')) {
+                    $skill_data['type'] = '進化スキル';
+                    
+                    // 進化元スキル名を取得する複数のパターンを試行
+                    $base_skill_found = false;
+                    
+                    // 1. _beforeクラス要素から取得（::before疑似要素のテキストも含む）
+                    $before_node = $node->filter('._before');
+                    if ($before_node->count() > 0) {
+                        $before_text = $before_node->text();
+                        // ::beforeテキストを除去して実際のテキストを取得
+                        $cleaned_text = preg_replace('/^::before\s*/', '', $before_text);
+                        if (!empty($cleaned_text)) {
+                            $skill_data['base_skill_name'] = trim($cleaned_text);
+                            // 進化スキルの解放条件は進化元スキル名に設定
+                            $skill_data['unlock_condition'] = '「' . $skill_data['base_skill_name'] . '」から進化';
+                            $base_skill_found = true;
+                            if ($debug_mode) {
+                                $debug_info .= "._beforeから進化元スキル名を取得: 「{$skill_data['base_skill_name']}」<br>";
+                                $debug_info .= "進化スキルの解放条件を設定: 「{$skill_data['unlock_condition']}」<br>";
+                            }
+                        }
+                    }
+                    
+                    // 2. _noteセクションから取得
+                    if (!$base_skill_found) {
+                        $note_node = $node->filter('._body ._note');
+                        if ($note_node->count() > 0) {
+                            $note_text = $note_node->text();
+                            if (preg_match('/「(.+?)」(?:から|が)進化/u', $note_text, $matches)) {
+                                $skill_data['base_skill_name'] = trim($matches[1]);
+                                $skill_data['unlock_condition'] = '「' . $skill_data['base_skill_name'] . '」から進化';
+                                $base_skill_found = true;
+                                if ($debug_mode) {
+                                    $debug_info .= "._noteから進化元スキル名を取得: 「{$skill_data['base_skill_name']}」<br>";
+                                    $debug_info .= "進化スキルの解放条件を設定: 「{$skill_data['unlock_condition']}」<br>";
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 3. 説明文から取得
+                    if (!$base_skill_found && $desc_node->count() > 0) {
+                        $desc_text = $desc_node->text();
+                        if (preg_match('/「(.+?)」(?:から|が)進化/u', $desc_text, $matches)) {
+                            $skill_data['base_skill_name'] = trim($matches[1]);
+                            $skill_data['unlock_condition'] = '「' . $skill_data['base_skill_name'] . '」から進化';
+                            $base_skill_found = true;
+                            if ($debug_mode) {
+                                $debug_info .= "説明文から進化元スキル名を取得: 「{$skill_data['base_skill_name']}」<br>";
+                                $debug_info .= "進化スキルの解放条件を設定: 「{$skill_data['unlock_condition']}」<br>";
+                            }
+                        }
+                    }
+                    
+                    // 4. HTML構造全体から取得（最後の手段）
+                    if (!$base_skill_found) {
+                        $full_html = $node->html();
+                        if (preg_match('/class="_before"[^>]*>([^<]+)</i', $full_html, $matches)) {
+                            $extracted_text = trim(strip_tags($matches[1]));
+                            $cleaned_text = preg_replace('/^::before\s*/', '', $extracted_text);
+                            if (!empty($cleaned_text)) {
+                                $skill_data['base_skill_name'] = $cleaned_text;
+                                $skill_data['unlock_condition'] = '「' . $skill_data['base_skill_name'] . '」から進化';
+                                $base_skill_found = true;
+                                if ($debug_mode) {
+                                    $debug_info .= "HTMLから進化元スキル名を取得: 「{$skill_data['base_skill_name']}」<br>";
+                                    $debug_info .= "進化スキルの解放条件を設定: 「{$skill_data['unlock_condition']}」<br>";
+                                }
+                            }
+                        }
+                    }
+                    
+                    // デバッグ情報
+                    if (!$base_skill_found && $debug_mode) {
+                        $debug_info .= "<strong style='color:orange;'>警告: 進化スキル「{$skill_data['name']}」の進化元スキルが検出できませんでした。</strong><br>";
+                    }
+                } elseif (str_contains((string)$li_class, 'rare')) {
+                    $skill_data['type'] = 'レアスキル';
+                }
+                
+                if ($debug_mode) {
+                    $debug_info .= "🎯 最終的な解放条件: 「{$skill_data['unlock_condition']}」<br>";
+                    $debug_info .= "💰 必要スキルポイント: " . ($skill_data['required_skill_points'] ?? 'なし') . "<br>";
+                    if ($skill_data['required_skill_points']) {
+                        $debug_info .= "💾 DBに登録される必要SP: " . $skill_data['required_skill_points'] . "<br>";
+                    }
+                    $debug_info .= "==============================<br><br>";
+                }
+                
+                if (!empty($skill_data['name'])) {
+                    $skills_data_list[] = $skill_data;
+                }
             });
+
+            // ▼▼▼【重要修正】2回目のループで、配列の情報を元にDBへ登録・更新を行う（必要スキルポイント対応） ▼▼▼
+            foreach ($skills_data_list as $skill_data) {
+                $base_skill_id = null;
+                
+                // 進化スキルの場合の処理
+                if ($skill_data['type'] === '進化スキル' && !empty($skill_data['base_skill_name'])) {
+                    // 1. 進化元スキルのIDを取得
+                    $base_skill_id = getSkillIdByName($conn, $skill_data['base_skill_name']);
+                    
+                    // 2. 進化元スキルが存在しない場合は作成
+                    if (!$base_skill_id) {
+                        $base_skill_id = registerOrUpdateSkill(
+                            $conn,
+                            $skill_data['base_skill_name'],
+                            '進化元スキルです。詳細は確認中です。',
+                            'ノーマルスキル',
+                            $skill_data['distance'],
+                            $skill_data['strategy'],
+                            $skill_data['surface'],
+                            null, // 進化元なのでbase_skill_idはnull
+                            null  // 進化元スキルの必要ポイントは不明
+                        );
+                        
+                        if ($debug_mode) {
+                            $debug_info .= "進化元スキル「{$skill_data['base_skill_name']}」を新規作成 (ID:{$base_skill_id})<br>";
+                        }
+                    }
+                }
+    
+                // 3. スキル本体を登録（進化スキルの場合はbase_skill_idを設定、必要スキルポイント含む）
+                $skill_id = registerOrUpdateSkill(
+                    $conn,
+                    $skill_data['name'],
+                    $skill_data['description'],
+                    $skill_data['type'],
+                    $skill_data['distance'],
+                    $skill_data['strategy'],
+                    $skill_data['surface'],
+                    $base_skill_id,
+                    $skill_data['required_skill_points'] // 必要スキルポイント
+                );
+                
+                if ($skill_id) {
+                    $scraped_data['character_skills'][] = [
+                        'skill_id' => $skill_id,
+                        'unlock_condition' => $skill_data['unlock_condition'] // 解放条件（スキルポイント or 進化元スキル名）
+                    ];
+                    
+                    if ($debug_mode) {
+                        $progress = "スキル「{$skill_data['name']}」(ID:{$skill_id}) をタイプ「{$skill_data['type']}」で処理";
+                        if ($base_skill_id) {
+                            $progress .= " - 進化元「{$skill_data['base_skill_name']}」(ID:{$base_skill_id})と紐付け";
+                        }
+                        $progress .= " [距離:{$skill_data['distance']}, 脚質:{$skill_data['strategy']}, 馬場:{$skill_data['surface']}]";
+                        $progress .= " [解放条件:{$skill_data['unlock_condition']}]";
+                        if ($skill_data['required_skill_points']) {
+                            $progress .= " [必要SP:{$skill_data['required_skill_points']}]";
+                        }
+                        $debug_info .= $progress . "<br>";
+                    }
+                }
+            }
 
         } catch (Exception $e) {
             if ($debug_mode) $debug_info .= "スキル取得エラー: " . $e->getMessage() . "<br>";
@@ -433,14 +872,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
     }
 }
 
-// データをセッションに保存してリダイレクト
+// ▼▼▼【修正】データをセッションに保存してリダイレクト（デバッグモード時は除外） ▼▼▼
 if ($scraped_data && empty($error_message)) {
-    if (session_status() == PHP_SESSION_NONE) {
-        session_start();
+    // デバッグモードが有効でない場合のみリダイレクト
+    if (!$debug_mode) {
+        if (session_status() == PHP_SESSION_NONE) {
+            session_start();
+        }
+        $_SESSION['scraped_data'] = $scraped_data;
+        header('Location: add.php');
+        exit;
     }
-    $_SESSION['scraped_data'] = $scraped_data;
-    header('Location: add.php');
-    exit;
+    // デバッグモード時はリダイレクトせず、成功メッセージを表示
+    else {
+        $success_message = "✅ データの取得が完了しました！<br>";
+        $success_message .= "デバッグモードのため、自動リダイレクトを無効にしています。<br>";
+        $success_message .= "<strong>取得されたデータ:</strong><br>";
+        $success_message .= "• キャラクター名: " . htmlspecialchars($scraped_data['character_name']) . "<br>";
+        $success_message .= "• スキル数: " . count($scraped_data['character_skills']) . "個<br>";
+        if (isset($scraped_data['image_suit_path'])) {
+            $success_message .= "• 画像: 取得済み<br>";
+        }
+        $success_message .= "<br><a href='add.php' class='button-primary' style='display: inline-block; margin: 10px 0; padding: 10px 15px; text-decoration: none;'>手動で登録ページへ進む</a>";
+        
+        // セッションにはデータを保存しておく（手動でadd.phpに行く場合のため）
+        if (session_status() == PHP_SESSION_NONE) {
+            session_start();
+        }
+        $_SESSION['scraped_data'] = $scraped_data;
+    }
 }
 
 include '../templates/header.php';
@@ -453,10 +913,26 @@ include '../templates/header.php';
         <div class="message error"><?php echo $error_message; ?></div>
     <?php endif; ?>
 
+    <?php if (isset($success_message)): ?>
+        <div class="message success" style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724;">
+            <?php echo $success_message; ?>
+        </div>
+    <?php endif; ?>
+
     <?php if ($debug_info && isset($_POST['debug'])): ?>
-        <div class="message" style="background: #f0f8ff; border: 1px solid #007acc;">
-            <h3>デバッグ情報:</h3>
+        <div class="message debug" style="background: #f0f8ff; border: 1px solid #007acc;">
+            <h3>🔍 詳細デバッグ情報:</h3>
             <?php echo $debug_info; ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if (isset($scraped_data) && $debug_mode): ?>
+        <div class="message debug" style="background: #f8f9fa; border: 1px solid #6c757d; margin-top: 20px;">
+            <h3>📊 取得データの詳細:</h3>
+            <details>
+                <summary style="cursor: pointer; font-weight: bold; padding: 5px;">クリックして全取得データを表示</summary>
+                <pre style="background: #fff; padding: 10px; border: 1px solid #ddd; overflow-x: auto; font-size: 12px; margin-top: 10px;"><?php echo htmlspecialchars(print_r($scraped_data, true)); ?></pre>
+            </details>
         </div>
     <?php endif; ?>
 
@@ -484,6 +960,7 @@ include '../templates/header.php';
             <li><strong>ステータス:</strong> 初期能力値、成長率</li>
             <li><strong>適性:</strong> バ場、距離、脚質の各適性ランク</li>
             <li><strong>スキル:</strong> 所持スキル一覧（自動でスキルDBに登録）</li>
+            <li><strong>解放条件:</strong> 必要スキルポイント、進化元スキル名</li>
             <li><strong>画像:</strong> キャラクター画像（自動ダウンロード）</li>
         </ul>
         
@@ -494,6 +971,7 @@ include '../templates/header.php';
             <li>一部のデータが取得できない場合でも、取得できた分のデータは反映されます</li>
             <li>取得できなかったデータは手動で入力してください</li>
             <li>スキル情報は自動でデータベースに登録され、重複登録は回避されます</li>
+            <li>必要スキルポイントも自動で検出・登録されます</li>
         </ul>
     </div>
 </div>

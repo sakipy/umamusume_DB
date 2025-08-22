@@ -1,0 +1,122 @@
+{
+    "カレンチャン(花嫁)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ラヴズオンリーユー": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "デュランダル": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "水着シュヴァルグラン": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "水着ヴィブロス": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "シーザリオ(花嫁)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "オルフェーヴル": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "コパノリッキー(パレード)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "フリオーソ": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "スマートファルコン(パレード)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ヴィルシーナ": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ウインバリアシオン": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "メジロラモーヌ(花嫁)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ハルウララ(正月)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "トウカイテイオー": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "オグリキャップ": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "スペシャルウィーク": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "シュヴァルグラン": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ビワハヤヒデ(クリスマス)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "エイシンフラッシュ": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ナリタブライアン": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ライスシャワー": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ダイワスカーレット": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ゴールドシップ": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    }
+}
