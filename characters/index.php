@@ -2,6 +2,7 @@
 // ========== ページ設定 ==========
 $page_title = 'ウマ娘一覧';
 $current_page = 'characters';
+$base_path = '../';
 
 // ========== DB接続 ==========
 $db_host = 'localhost';
@@ -13,8 +14,8 @@ $conn = new mysqli($db_host, $db_username, $db_password, $db_name);
 if ($conn->connect_error) {
     die('接続失敗: ' . $conn->connect_error);
 }
+$conn->set_charset("utf8mb4");
 
-// ▼▼▼【修正】キャラクターの総数を取得するクエリを追加 ▼▼▼
 $total_characters_result = $conn->query("SELECT COUNT(*) as count FROM characters");
 $total_characters = $total_characters_result->fetch_assoc()['count'];
 
@@ -23,8 +24,47 @@ $sort_options = ['id_desc' => '新着順', 'name_asc' => 'あいうえお順'];
 $rarity_options = ['3' => '★3', '2' => '★2', '1' => '★1'];
 $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
 
+/**
+ * ★★★ 新しく追加する関数 ★★★
+ * キャラクター名を接頭語と本体に分割する関数
+ * 接尾語は接頭語の前に移動させる
+ */
+function splitCharacterName($fullName) {
+    $prefixes = [];
+    $main = $fullName;
+
+    // 1. 接尾語(例: (水着)) を抽出し、接頭語リストの最初に移動
+    if (preg_match('/(.*)(【(.+?)】|\((.+?)\))$/u', $main, $matches)) {
+        $main = trim($matches[1]);
+        $suffixContent = !empty($matches[3]) ? $matches[3] : $matches[4];
+        array_unshift($prefixes, $suffixContent);
+    }
+
+    // 2. 接頭語(例: [新衣装]) を抽出し、接頭語リストに追加
+    if (preg_match('/^([\[【](.+?)[\]】])(.*)/u', $main, $matches)) {
+        $main = trim($matches[3]);
+        $prefixes[] = $matches[2]; // 括弧の中身だけ
+    }
+    
+    // 3. 特定の単語の接頭語(例: 水着ヴィブロス) を抽出し、接頭語リストに追加
+    $prefix_words = ['水着'];
+    foreach ($prefix_words as $p) {
+        if (strpos($main, $p) === 0) {
+            if (!in_array($p, $prefixes)) {
+                 $prefixes[] = $p;
+            }
+            $main = trim(substr($main, strlen($p)));
+            break;
+        }
+    }
+
+    return [
+        'prefix' => implode(' ', $prefixes), // 配列をスペースで連結
+        'main'   => trim($main)
+    ];
+}
+
 // テンプレート読み込み
-$base_path = '../'; // テンプレート用のパス設定
 require_once __DIR__ . '/../templates/header.php';
 ?>
 
@@ -40,7 +80,8 @@ require_once __DIR__ . '/../templates/header.php';
             <div class="page-actions">
                 <a href="add.php" class="add-link">新しいウマ娘を追加する</a>
                 <a href="import.php" class="add-link" style="background-color: #f39c12; border-color: #d68910;">URLを指定してインポート</a>
-                <a href="scrape_all.php" class="add-link" style="background-color: #e74c3c; border-color: #c0392b;">未登録データを一括インポート</a>                </div>
+                <a href="scrape_all.php" class="add-link" style="background-color: #e74c3c; border-color: #c0392b;">未登録データを一括インポート</a>
+            </div>
             <div style="display: flex; align-items: center; gap: 15px;">
                 <button type="button" id="open-advanced-filter" class="action-button button-edit">詳細絞り込み</button>
                 <div class="active-filters-container" id="active-filters-container"></div>
@@ -134,6 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('search_characters.php?' + params)
             .then(response => response.json())
             .then(data => {
+                // Ajaxで取得したHTMLには名前の二段表示ロジックが含まれている必要がある
                 cardGrid.innerHTML = data.card_html;
                 document.getElementById('active-filters-container').innerHTML = data.badge_html;
             })

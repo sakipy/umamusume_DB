@@ -13,6 +13,26 @@ $conn = new mysqli('localhost', 'root', '', 'umamusume_db');
 if ($conn->connect_error) { die("DB接続失敗: " . $conn->connect_error); }
 $conn->set_charset("utf8mb4");
 
+// 安全な画像削除関数（delete.phpから移植）
+function safe_delete_image($image_path) {
+    if (empty($image_path)) return false;
+    
+    // 相対パスの場合は絶対パスに変換
+    if (strpos($image_path, 'uploads/') === 0) {
+        $full_path = '../' . $image_path;
+    } else {
+        $full_path = $image_path;
+    }
+    
+    // ファイルが存在し、uploadsディレクトリ内にあることを確認
+    if (file_exists($full_path) && strpos(realpath($full_path), realpath('../uploads/')) === 0) {
+        if (unlink($full_path)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // =================================================================
 // POSTリクエスト（フォームが送信された）の場合の処理
 // =================================================================
@@ -36,12 +56,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         function update_image($file_key, $prefix, $current_url) {
             if (isset($_FILES[$file_key]) && $_FILES[$file_key]['error'] == 0) {
                 $upload_dir = '../uploads/characters/';
-                $file_name = time() . '_' . $prefix . '_' . basename($_FILES[$file_key]['name']);
+                if (!is_dir($upload_dir)) { mkdir($upload_dir, 0777, true); }
+                
+                $file_extension = pathinfo($_FILES[$file_key]['name'], PATHINFO_EXTENSION);
+                $file_name = time() . '_' . $prefix . '_' . bin2hex(random_bytes(8)) . '.' . $file_extension;
                 $target_file = $upload_dir . $file_name;
+                
+                // ファイル形式チェック
+                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                $mime_type = $finfo->file($_FILES[$file_key]['tmp_name']);
+                if (strpos($mime_type, 'image/') !== 0) {
+                    throw new Exception(ucfirst($prefix) . "画像のファイル形式が無効です。");
+                }
+                
                 if (move_uploaded_file($_FILES[$file_key]['tmp_name'], $target_file)) {
-                    if (!empty($current_url) && file_exists('../' . $current_url)) {
-                        unlink('../' . $current_url);
-                    }
+                    // 新しい画像のアップロードが成功したら、古い画像を安全に削除
+                    safe_delete_image($current_url);
+                    chmod($target_file, 0644);
                     return 'uploads/characters/' . $file_name;
                 } else {
                     throw new Exception(ucfirst($prefix) . "画像のアップロードに失敗しました。");
@@ -76,13 +107,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt_char->execute();
         $stmt_char->close();
 
-        // スキル紐付けの更新 (DELETE -> INSERT)
+        // スキル紐付けの更新 (DELETE -> INSERT) - unlock_conditionを削除
         $conn->query("DELETE FROM character_skills WHERE character_id = $new_id");
         if (!empty($_POST['skill_ids']) && is_array($_POST['skill_ids'])) {
-            $stmt_skill = $conn->prepare("INSERT INTO character_skills (character_id, skill_id, unlock_condition) VALUES (?, ?, ?)");
+            $stmt_skill = $conn->prepare("INSERT INTO character_skills (character_id, skill_id) VALUES (?, ?)");
             foreach ($_POST['skill_ids'] as $skill_id) {
-                $unlock_condition = '初期';
-                $stmt_skill->bind_param("iis", $new_id, $skill_id, $unlock_condition);
+                $stmt_skill->bind_param("ii", $new_id, $skill_id);
                 $stmt_skill->execute();
             }
             $stmt_skill->close();

@@ -7,6 +7,21 @@ $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
 if ($conn->connect_error) { die("DB接続失敗: " . $conn->connect_error); }
 $conn->set_charset("utf8mb4");
 
+// 安全な画像削除関数
+function safe_delete_image($image_path) {
+    if (empty($image_path)) return false;
+    
+    // パスの正規化と検証
+    $real_path = realpath($image_path);
+    $uploads_dir = realpath(__DIR__ . '/../uploads');
+    
+    // uploadsディレクトリ内かつファイルが存在することを確認
+    if ($real_path && $uploads_dir && strpos($real_path, $uploads_dir) === 0 && is_file($real_path)) {
+        return unlink($real_path);
+    }
+    return false;
+}
+
 // トランザクションを開始して、全ての削除処理を安全に行う
 $conn->begin_transaction();
 
@@ -17,9 +32,7 @@ try {
     $stmt_select->execute();
     $result = $stmt_select->get_result();
     if ($card = $result->fetch_assoc()) {
-        if (!empty($card['image_url']) && file_exists($card['image_url'])) {
-            unlink($card['image_url']);
-        }
+        safe_delete_image($card['image_url']);
     }
     $stmt_select->close();
 

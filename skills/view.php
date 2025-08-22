@@ -477,169 +477,144 @@ $base_path = '../';
     .confidence-indicator.low { background: #dc3545; }
 </style>
 
-<div class="container">
-    <div class="skill-details-container">
-        <div class="skill-details-header">
-            <h1><?php echo htmlspecialchars($skill['skill_name']); ?></h1>
-            <?php
-                $type_class = '';
-                if ($skill['skill_type'] == 'レアスキル') { $type_class = ' type-rare'; } 
-                elseif ($skill['skill_type'] == '進化スキル') { $type_class = ' type-evolution'; }
-                elseif ($skill['skill_type'] == '固有スキル') { $type_class = ' type-unique'; }
-            ?>
-            <span class="skill-card-type<?php echo $type_class; ?>"><?php echo htmlspecialchars($skill['skill_type']); ?></span>
-        </div>
-        <div class="skill-details-body">
-            <p><strong>距離:</strong> <?php echo htmlspecialchars($skill['distance_type'] ?: '指定なし'); ?></p>
-            <p><strong>脚質:</strong> <?php echo htmlspecialchars($skill['strategy_type'] ?: '指定なし'); ?></p>
-            <p><strong>馬場:</strong> <?php echo htmlspecialchars($skill['surface_type'] ?: '指定なし'); ?></p>
-            <p><strong>説明:</strong></p>
-            <p><?php echo nl2br(htmlspecialchars($skill['skill_description'])); ?></p>
-        </div>
-    </div>
+<div class="page-wrapper-with-sidebar">
+    <div class="main-content-area">
+        <div class="skill-details-container">
+            <div class="skill-details-header">
+                <h1><?php echo htmlspecialchars($skill['skill_name']); ?></h1>
+                <?php
+                    $type_class = '';
+                    if ($skill['skill_type'] == 'レアスキル') { $type_class = ' type-rare'; }
+                    elseif ($skill['skill_type'] == '進化スキル') { $type_class = ' type-evolution'; }
+                    elseif ($skill['skill_type'] == '固有スキル') { $type_class = ' type-unique'; }
+                ?>
+                <span class="skill-card-type<?php echo $type_class; ?>"><?php echo htmlspecialchars($skill['skill_type']); ?></span>
+            </div>
+            <div class="skill-details-body">
+                <p><strong>距離:</strong> <?php echo htmlspecialchars($skill['distance_type'] ?: '指定なし'); ?></p>
+                <p><strong>脚質:</strong> <?php echo htmlspecialchars($skill['strategy_type'] ?: '指定なし'); ?></p>
+                <p><strong>馬場:</strong> <?php echo htmlspecialchars($skill['surface_type'] ?: '指定なし'); ?></p>
+                <p><strong>説明:</strong></p>
+                <p><?php echo nl2br(htmlspecialchars($skill['skill_description'])); ?></p>
+            </div>
 
-    <div class="controls-container" style="margin-top: 24px; justify-content: center;">
-        <div class="page-actions">
-            <a href="edit.php?id=<?php echo $skill['id']; ?>" class="action-button button-edit">このスキルを編集する</a>
-            <a href="index.php" class="back-link">&laquo; スキル一覧に戻る</a>
-        </div>
-    </div>
-    
-    <div class="view-grid-container">
-    <div class="container" style="margin-top: 30px;">
-        <h2 class="section-title">このスキルを持つウマ娘</h2>
-        <?php if (!empty($characters)): ?>
-            <div class="character-list">
-                <?php foreach ($characters as $character): ?>
-                    <div class="character-item">
-                        <a href="../characters/view.php?id=<?php echo $character['id']; ?>">
-                            <?php
-                                // 画像パスの取得
-                                $image_path = '';
-                                
-                                // 1. 勝負服画像を優先
-                                if (!empty($character['image_url_suit'])) {
-                                    if (strpos($character['image_url_suit'], 'http') === 0) {
-                                        $image_path = $character['image_url_suit'];
-                                    } else {
-                                        $image_path = '../' . $character['image_url_suit'];
-                                    }
-                                }
-                                // 2. 通常画像を使用
-                                elseif (!empty($character['image_url'])) {
-                                    if (strpos($character['image_url'], 'http') === 0) {
-                                        $image_path = $character['image_url'];
-                                    } else {
-                                        $image_path = '../' . $character['image_url'];
-                                    }
-                                }
-                                // 3. デフォルト画像
-                                else {
-                                    $image_path = '../images/default_face.png';
-                                }
-                                
-                                $char_name_full = $character['character_name'];
+            <div class="controls-container" style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 20px; justify-content: center;">
+                <div class="page-actions">
+                    <a href="edit.php?id=<?php echo $skill['id']; ?>" class="action-button button-edit">このスキルを編集する</a>
+                    <a href="index.php" class="back-link">&laquo; スキル一覧に戻る</a>
+                </div>
+            </div>
 
-                                // 自動顔検出システムを使用
-                                $optimal_position = calculateOptimalImagePosition($image_path, $char_name_full);
-                                
-                                // styleを生成
-                                $style  = "background-image: url('" . htmlspecialchars($image_path) . "'); ";
-                                $style .= "background-position: center " . $optimal_position['background_position_y'] . "%; ";
-                                $style .= "background-size: " . $optimal_position['background_size'] . "%;";
-
-                                // CSSクラスを設定
-                                $css_class = 'character-icon-wrapper';
-                                if ($optimal_position['confidence'] > 0.6) {
-                                    $css_class .= ' auto-detected';
-                                } elseif ($optimal_position['confidence'] > 0.2) {
-                                    $css_class .= ' auto-detected';
-                                } else {
-                                    $css_class .= ' low-confidence';
-                                }
-
-                                // 名前を分割
-                                $name_parts = splitCharacterName($char_name_full);
-                            ?>
-                            <div class="<?php echo $css_class; ?>" 
-                                 style="<?php echo $style; ?>"
-                                 title="<?php echo $char_name_full; ?> - 検出信頼度: <?php echo round($optimal_position['confidence'] * 100); ?>%">
-                                <?php if ($optimal_position['confidence'] > 0.2): ?>
-                                    <div class="confidence-indicator <?php echo $optimal_position['confidence'] > 0.6 ? 'high' : ($optimal_position['confidence'] > 0.4 ? 'medium' : 'low'); ?>">
-                                        <?php echo round($optimal_position['confidence'] * 100); ?>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                            <span class="character-name">
-                                <?php if (!empty($name_parts['prefix'])): ?>
-                                    <span class="char-name-prefix"><?php echo htmlspecialchars($name_parts['prefix']); ?></span>
-                                <?php endif; ?>
-                                <span class="char-name-main"><?php echo htmlspecialchars($name_parts['main']); ?></span>
-                            </span>
-                        </a>
+            <?php if (!empty($evolution_bases) || !empty($evolution_evolved)): ?>
+            <div class="evolution-container" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+                <h2 class="section-title">スキル進化関係</h2>
+                
+                <?php if (!empty($evolution_bases)): ?>
+                <div class="evolution-section">
+                    <h3>進化元スキル</h3>
+                    <div class="evolution-skills">
+                        <?php foreach ($evolution_bases as $base_skill): ?>
+                        <div class="evolution-skill-item">
+                            <a href="view.php?id=<?php echo $base_skill['id']; ?>" class="evolution-skill-link">
+                                <?php
+                                    $type_class = '';
+                                    if ($base_skill['skill_type'] == 'レアスキル') { $type_class = ' type-rare'; } 
+                                    elseif ($base_skill['skill_type'] == '進化スキル') { $type_class = ' type-evolution'; }
+                                    elseif ($base_skill['skill_type'] == '固有スキル') { $type_class = ' type-unique'; }
+                                ?>
+                                <span class="skill-card-type<?php echo $type_class; ?>"><?php echo htmlspecialchars($base_skill['skill_type']); ?></span>
+                                <h4><?php echo htmlspecialchars($base_skill['skill_name']); ?></h4>
+                                <div class="skill-description"><?php echo nl2br(htmlspecialchars($base_skill['skill_description'])); ?></div>
+                            </a>
+                        </div>
+                        <?php endforeach; ?>
                     </div>
-                <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+                
+                <?php if (!empty($evolution_evolved)): ?>
+                <div class="evolution-arrow">↓</div>
+                <div class="evolution-section">
+                    <h3>進化先スキル</h3>
+                    <div class="evolution-skills two-column">
+                        <?php foreach ($evolution_evolved as $evolved_skill): ?>
+                        <div class="evolution-skill-item">
+                            <a href="view.php?id=<?php echo $evolved_skill['id']; ?>" class="evolution-skill-link">
+                                <?php
+                                    $type_class = '';
+                                    if ($evolved_skill['skill_type'] == 'レアスキル') { $type_class = ' type-rare'; } 
+                                    elseif ($evolved_skill['skill_type'] == '進化スキル') { $type_class = ' type-evolution'; }
+                                    elseif ($evolved_skill['skill_type'] == '固有スキル') { $type_class = ' type-unique'; }
+                                ?>
+                                <span class="skill-card-type<?php echo $type_class; ?>"><?php echo htmlspecialchars($evolved_skill['skill_type']); ?></span>
+                                <h4><?php echo htmlspecialchars($evolved_skill['skill_name']); ?></h4>
+                                <div class="skill-description"><?php echo nl2br(htmlspecialchars($evolved_skill['skill_description'])); ?></div>
+                            </a>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
             </div>
-        <?php else: ?>
-            <p>このスキルを持つウマ娘は登録されていません。</p>
-        <?php endif; ?>
+            <?php endif; ?>
+
+        </div>
     </div>
 
-    <!-- 進化関係表示セクション -->
-    <?php if (!empty($evolution_bases) || !empty($evolution_evolved)): ?>
-    <div class="container" style="margin-top: 30px;">
-        <h2 class="section-title">スキル進化関係</h2>
-        
-        <?php if (!empty($evolution_bases)): ?>
-        <div class="evolution-section">
-            <h3>進化元スキル</h3>
-            <div class="evolution-skills">
-                <?php foreach ($evolution_bases as $base_skill): ?>
-                <div class="evolution-skill-item">
-                    <a href="view.php?id=<?php echo $base_skill['id']; ?>" class="evolution-skill-link">
-                        <?php
-                            $type_class = '';
-                            if ($base_skill['skill_type'] == 'レアスキル') { $type_class = ' type-rare'; } 
-                            elseif ($base_skill['skill_type'] == '進化スキル') { $type_class = ' type-evolution'; }
-                            elseif ($base_skill['skill_type'] == '固有スキル') { $type_class = ' type-unique'; }
-                        ?>
-                        <span class="skill-card-type<?php echo $type_class; ?>"><?php echo htmlspecialchars($base_skill['skill_type']); ?></span>
-                        <h4><?php echo htmlspecialchars($base_skill['skill_name']); ?></h4>
-                        <div class="skill-description"><?php echo nl2br(htmlspecialchars($base_skill['skill_description'])); ?></div>
-                    </a>
-                    <div class="evolution-arrow">↓</div>
+    <div class="related-info-sidebar">
+        <div class="related-info-container">
+            <h2 class="section-title">このスキルを持つウマ娘</h2>
+            <?php if (!empty($characters)): ?>
+                <div class="character-list">
+                    <?php foreach ($characters as $character): ?>
+                        <div class="character-item">
+                            <a href="../characters/view.php?id=<?php echo $character['id']; ?>">
+                                <?php
+                                    $image_path = '';
+                                    if (!empty($character['image_url_suit'])) {
+                                        $image_path = (strpos($character['image_url_suit'], 'http') === 0) ? $character['image_url_suit'] : '../' . $character['image_url_suit'];
+                                    } elseif (!empty($character['image_url'])) {
+                                        $image_path = (strpos($character['image_url'], 'http') === 0) ? $character['image_url'] : '../' . $character['image_url'];
+                                    } else {
+                                        $image_path = '../images/default_face.png';
+                                    }
+                                    
+                                    $char_name_full = $character['character_name'];
+                                    $optimal_position = calculateOptimalImagePosition($image_path, $char_name_full);
+                                    
+                                    $style  = "background-image: url('" . htmlspecialchars($image_path) . "'); ";
+                                    $style .= "background-position: center " . $optimal_position['background_position_y'] . "%; ";
+                                    $style .= "background-size: " . $optimal_position['background_size'] . "%;";
+
+                                    $css_class = 'character-icon-wrapper';
+                                    if ($optimal_position['confidence'] > 0.2) { $css_class .= ' auto-detected'; } else { $css_class .= ' low-confidence'; }
+
+                                    $name_parts = splitCharacterName($char_name_full);
+                                ?>
+                                <div class="<?php echo $css_class; ?>" style="<?php echo $style; ?>" title="<?php echo $char_name_full; ?> - 検出信頼度: <?php echo round($optimal_position['confidence'] * 100); ?>%">
+                                    <?php if ($optimal_position['confidence'] > 0.2): ?>
+                                        <div class="confidence-indicator <?php echo $optimal_position['confidence'] > 0.6 ? 'high' : ($optimal_position['confidence'] > 0.4 ? 'medium' : 'low'); ?>">
+                                            <?php echo round($optimal_position['confidence'] * 100); ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                <span class="character-name">
+                                    <?php if (!empty($name_parts['prefix'])): ?>
+                                        <span class="char-name-prefix"><?php echo htmlspecialchars($name_parts['prefix']); ?></span>
+                                    <?php endif; ?>
+                                    <span class="char-name-main"><?php echo htmlspecialchars($name_parts['main']); ?></span>
+                                </span>
+                            </a>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
-                <?php endforeach; ?>
-            </div>
+            <?php else: ?>
+                <p>このスキルを持つウマ娘は登録されていません。</p>
+            <?php endif; ?>
         </div>
-        <?php endif; ?>
-        
-        <?php if (!empty($evolution_evolved)): ?>
-        <div class="evolution-section">
-            <h3>進化先スキル</h3>
-            <div class="evolution-skills">
-                <div class="evolution-arrow">↓</div>
-                <?php foreach ($evolution_evolved as $evolved_skill): ?>
-                <div class="evolution-skill-item">
-                    <a href="view.php?id=<?php echo $evolved_skill['id']; ?>" class="evolution-skill-link">
-                        <?php
-                            $type_class = '';
-                            if ($evolved_skill['skill_type'] == 'レアスキル') { $type_class = ' type-rare'; } 
-                            elseif ($evolved_skill['skill_type'] == '進化スキル') { $type_class = ' type-evolution'; }
-                            elseif ($evolved_skill['skill_type'] == '固有スキル') { $type_class = ' type-unique'; }
-                        ?>
-                        <span class="skill-card-type<?php echo $type_class; ?>"><?php echo htmlspecialchars($evolved_skill['skill_type']); ?></span>
-                        <h4><?php echo htmlspecialchars($evolved_skill['skill_name']); ?></h4>
-                        <div class="skill-description"><?php echo nl2br(htmlspecialchars($evolved_skill['skill_description'])); ?></div>
-                    </a>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <?php endif; ?>
     </div>
-    <?php endif; ?>
-</div>
+</div>  
 
 <style>
 .evolution-section {

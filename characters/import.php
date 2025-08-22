@@ -830,8 +830,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                 
                 if ($skill_id) {
                     $scraped_data['character_skills'][] = [
-                        'skill_id' => $skill_id,
-                        'unlock_condition' => $skill_data['unlock_condition'] // 解放条件（スキルポイント or 進化元スキル名）
+                        'skill_id' => $skill_id
+                        // unlock_conditionを削除 - skillsテーブルから取得するため不要
                     ];
                     
                     if ($debug_mode) {
@@ -840,7 +840,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['url'])) {
                             $progress .= " - 進化元「{$skill_data['base_skill_name']}」(ID:{$base_skill_id})と紐付け";
                         }
                         $progress .= " [距離:{$skill_data['distance']}, 脚質:{$skill_data['strategy']}, 馬場:{$skill_data['surface']}]";
-                        $progress .= " [解放条件:{$skill_data['unlock_condition']}]";
                         if ($skill_data['required_skill_points']) {
                             $progress .= " [必要SP:{$skill_data['required_skill_points']}]";
                         }

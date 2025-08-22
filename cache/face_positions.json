@@ -128,5 +128,75 @@
         "background_position_y": -8,
         "background_size": 200,
         "confidence": 0.1
+    },
+    "オグリキャップ(クリスマス)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ヒシアケボノ": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "サイレンススズカ": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "アイネスフウジン(バレンタイン)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ミホノブルボン(バレンタイン)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "シーキングザパール(ハロウィン)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ナイスネイチャ(正月)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ナリタトップロード": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "シーキングザパール": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ファインモーション(花嫁)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "サトノダイヤモンド": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ウイニングチケット": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "水着メジロマックイーン": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "テイエムオペラオー(正月)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
     }
 }

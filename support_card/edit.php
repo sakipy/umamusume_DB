@@ -31,9 +31,61 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
     if (!$id) { die("無効なIDです。"); }
 
+    // 安全な画像削除関数
+    function safe_delete_image($image_path) {
+        if (empty($image_path)) return false;
+        
+        // パスの正規化と検証
+        $real_path = realpath($image_path);
+        $uploads_dir = realpath(__DIR__ . '/../uploads');
+        
+        // uploadsディレクトリ内かつファイルが存在することを確認
+        if ($real_path && $uploads_dir && strpos($real_path, $uploads_dir) === 0 && is_file($real_path)) {
+            return unlink($real_path);
+        }
+        return false;
+    }
+
+    // 画像アップロード処理関数
+    function update_image($file_key, $current_image) {
+        if (isset($_FILES[$file_key]) && $_FILES[$file_key]['error'] == UPLOAD_ERR_OK) {
+            // MIME type 検証
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime_type = $finfo->file($_FILES[$file_key]['tmp_name']);
+            if (strpos($mime_type, 'image/') !== 0) {
+                throw new Exception("画像ファイル形式が無効です。");
+            }
+
+            $upload_dir = '../uploads/support_cards/';
+            if (!is_dir($upload_dir)) { mkdir($upload_dir, 0777, true); }
+            
+            $file_extension = pathinfo($_FILES[$file_key]['name'], PATHINFO_EXTENSION);
+            $file_name = time() . '_' . bin2hex(random_bytes(8)) . '.' . $file_extension;
+            $target_file = $upload_dir . $file_name;
+            
+            if (move_uploaded_file($_FILES[$file_key]['tmp_name'], $target_file)) {
+                // 古い画像を安全に削除
+                safe_delete_image($current_image);
+                return 'uploads/support_cards/' . $file_name;
+            }
+            throw new Exception("画像アップロードに失敗しました。");
+        }
+        return $current_image; // 新しいファイルがない場合は既存のパスを返す
+    }
+
     // トランザクション開始
     $conn->begin_transaction();
     try {
+        // 現在の画像URLを取得
+        $stmt_current = $conn->prepare("SELECT image_url FROM support_cards WHERE id = ?");
+        $stmt_current->bind_param("i", $id);
+        $stmt_current->execute();
+        $current_data = $stmt_current->get_result()->fetch_assoc();
+        $stmt_current->close();
+
+        // 画像アップロード処理
+        $image_url = update_image('card_image', $current_data['image_url']);
+
         // 1. 基本情報の更新
         $card_name = $_POST['card_name'] ?? '';
         $rarity = $_POST['rarity'] ?? '';
@@ -42,8 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // ▼▼▼【追記】pokedex_idを取得 ▼▼▼
         $pokedex_id = !empty($_POST['pokedex_id']) ? (int)$_POST['pokedex_id'] : NULL;
         
-        $stmt_card = $conn->prepare("UPDATE support_cards SET card_name = ?, rarity = ?, card_type = ?, pokedex_id = ? WHERE id = ?");
-        $stmt_card->bind_param("sssii", $card_name, $rarity, $card_type, $pokedex_id, $id);
+        $stmt_card = $conn->prepare("UPDATE support_cards SET card_name = ?, rarity = ?, card_type = ?, image_url = ?, pokedex_id = ? WHERE id = ?");
+        $stmt_card->bind_param("ssssii", $card_name, $rarity, $card_type, $image_url, $pokedex_id, $id);
         $stmt_card->execute();
         $stmt_card->close();
 

@@ -28,6 +28,29 @@ $conn = new mysqli('localhost', 'root', '', 'umamusume_db');
 if ($conn->connect_error) { die("DB接続失敗: " . $conn->connect_error); }
 $conn->set_charset("utf8mb4");
 
+// ========== 最小の空きIDを取得する関数 ==========
+function getNextAvailableId($conn) {
+    // 既存のIDを昇順で取得
+    $result = $conn->query("SELECT id FROM characters ORDER BY id ASC");
+    $used_ids = [];
+    while ($row = $result->fetch_assoc()) {
+        $used_ids[] = $row['id'];
+    }
+    
+    // 1から順番に確認して、最初に見つからないIDを返す
+    $expected_id = 1;
+    foreach ($used_ids as $used_id) {
+        if ($expected_id < $used_id) {
+            // 空きが見つかった
+            return $expected_id;
+        }
+        $expected_id = $used_id + 1;
+    }
+    
+    // 空きがない場合は、最大値+1を返す
+    return $expected_id;
+}
+
 // =================================================================
 // POSTリクエスト（フォームが送信された）の場合の処理
 // =================================================================
@@ -114,18 +137,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             throw new Exception("データベースへの登録に失敗しました: " . $conn->error);
         }
         
-        // ▼▼▼【修正】スキルと解放条件をDBに登録する処理 ▼▼▼
+        // ▼▼▼【修正】スキル関連処理を簡素化 - unlock_conditionを削除 ▼▼▼
         if (!empty($_POST['skill_ids']) && is_array($_POST['skill_ids'])) {
-            // インポートされたスキル情報（解放条件付き）をhiddenフィールドから取得
-            $imported_skills_json = $_POST['imported_skills_json'] ?? '[]';
-            $imported_skills = json_decode($imported_skills_json, true);
-            $unlock_conditions_map = array_column($imported_skills, 'unlock_condition', 'skill_id');
-
-            $stmt_skill = $conn->prepare("INSERT INTO character_skills (character_id, skill_id, unlock_condition) VALUES (?, ?, ?)");
+            $stmt_skill = $conn->prepare("INSERT INTO character_skills (character_id, skill_id) VALUES (?, ?)");
             foreach ($_POST['skill_ids'] as $skill_id) {
-                // マップから解放条件を検索し、見つからなければ '初期' を使う
-                $unlock_condition = $unlock_conditions_map[$skill_id] ?? '初期';
-                $stmt_skill->bind_param("iis", $id, $skill_id, $unlock_condition);
+                $stmt_skill->bind_param("ii", $id, $skill_id);
                 $stmt_skill->execute();
             }
             $stmt_skill->close();
@@ -150,6 +166,10 @@ $all_skills_result = $conn->query("SELECT id, skill_name, skill_type FROM skills
 while ($row = $all_skills_result->fetch_assoc()) { 
     $all_skills[] = $row; 
 }
+
+// 自動IDを取得（スクレイピングデータがない場合に使用）
+$next_available_id = getNextAvailableId($conn);
+
 $conn->close();
 
 $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
@@ -170,7 +190,8 @@ $aptitude_options = ['S', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
             <div class="form-col-main">
                 <div class="form-group">
                     <label for="id">ID:</label>
-                    <input type="number" id="id" name="id" value="<?php echo htmlspecialchars($scraped_data['id'] ?? ''); ?>" required>
+                    <input type="number" id="id" name="id" value="<?php echo htmlspecialchars($scraped_data['id'] ?? $next_available_id); ?>" required>
+                    <small style="color: #666;">自動で空いている最小のIDが入力されています</small>
                 </div>
                 <div class="form-group">
                     <label for="character_name">ウマ娘名:</label>

@@ -776,8 +776,8 @@ try {
                     
                     if ($skill_id) {
                         $character_skills[] = [
-                            'skill_id' => $skill_id,
-                            'unlock_condition' => $skill_data['unlock_condition']
+                            'skill_id' => $skill_id
+                            // unlock_conditionを削除 - skillsテーブルから取得するため不要
                         ];
                         log_message("スキル「{$skill_data['name']}」を処理 (ID:{$skill_id})", "info");
                     }
@@ -903,10 +903,10 @@ try {
             );
 
             if ($stmt->execute()) {
-                // キャラクタースキル関係を登録
+                // キャラクタースキル関係を登録（unlock_condition削除）
                 foreach ($character_skills as $char_skill) {
-                    $cs_stmt = $conn->prepare("INSERT INTO character_skills (character_id, skill_id, unlock_condition) VALUES (?, ?, ?)");
-                    $cs_stmt->bind_param("iis", $next_id, $char_skill['skill_id'], $char_skill['unlock_condition']);
+                    $cs_stmt = $conn->prepare("INSERT INTO character_skills (character_id, skill_id) VALUES (?, ?)");
+                    $cs_stmt->bind_param("ii", $next_id, $char_skill['skill_id']);
                     $cs_stmt->execute();
                     $cs_stmt->close();
                 }

@@ -31,14 +31,30 @@ if (!$character) {
 }
 $page_title = '詳細: ' . htmlspecialchars($character['character_name']);
 
-// === 2. 所持スキルを取得 ===
+// === 2. 所持スキルを取得（skillsテーブルから直接取得に変更） ===
 $owned_skills = [];
-$stmt_skills = $conn->prepare("
-    SELECT s.*, cs.unlock_condition 
+$sql_skills = "
+    SELECT 
+        s.id,
+        s.skill_name,
+        s.skill_description,
+        s.skill_type,
+        s.required_skill_points,
+        CASE 
+            WHEN s.base_skill_id IS NOT NULL THEN CONCAT('「', base_s.skill_name, '」から進化')
+            WHEN s.required_skill_points IS NOT NULL THEN CONCAT(s.required_skill_points, 'pt')
+            ELSE '初期'
+        END as unlock_condition,
+        base_s.skill_name as base_skill_name,
+        base_s.id as base_skill_id
     FROM skills s
     JOIN character_skills cs ON s.id = cs.skill_id
+    LEFT JOIN skills base_s ON s.base_skill_id = base_s.id
     WHERE cs.character_id = ?
-");
+    ORDER BY FIELD(s.skill_type, '固有スキル'), s.id
+";
+
+$stmt_skills = $conn->prepare($sql_skills);
 $stmt_skills->bind_param("i", $id);
 $stmt_skills->execute();
 $result_skills = $stmt_skills->get_result();
@@ -46,17 +62,21 @@ while($row = $result_skills->fetch_assoc()){
     $owned_skills[] = $row;
 }
 $stmt_skills->close();
-
 $conn->close();
+
+// 編集モード設定のグローバル変数を読み込む
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 
 include '../templates/header.php';
 ?>
 
 <style>
-    /* ステータス＆成長率グリッドのレイアウトをここで確定させる */
+    /* ステータス＆成長率グリッドのレイアウト */
     .status-growth-grid.view-mode {
-        display: grid !important; /* !importantで他のCSSを強制的に上書き */
-        grid-template-columns: 60px repeat(5, 1fr); /* ラベル列 + ステータス5列 */
+        display: grid !important;
+        grid-template-columns: 60px repeat(5, 1fr);
         gap: 8px 5px;
         align-items: center;
         text-align: center;
@@ -65,7 +85,25 @@ include '../templates/header.php';
         padding: 15px;
         background-color: #fdfdfd;
     }
+    /* 進化元スキル表示用のスタイル */
+    .evolution-source {
+        font-size: 0.85em;
+        color: #666;
+        background-color: #f0f8ff;
+        padding: 5px 10px;
+        margin-top: 8px;
+        border-radius: 4px;
+        border-left: 3px solid #87ceeb;
+    }
+    .evolution-source a {
+        color: #1a0dab;
+        text-decoration: none;
+    }
+    .evolution-source a:hover {
+        text-decoration: underline;
+    }
 </style>
+
 <div class="container">
     <div class="character-view-header">
         <div class="character-view-rarity"><?php echo str_repeat('★', $character['rarity']); ?></div>
@@ -135,7 +173,7 @@ include '../templates/header.php';
                     <tr>
                         <th>スキル情報</th>
                         <th>タイプ</th>
-                        <th>解放条件</th>
+                        <th>解放条件 / Pt</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -148,11 +186,18 @@ include '../templates/header.php';
                     ?>
                     <tr class="<?php echo $row_class; ?>">
                         <td>
-                            <div class="<?php echo $name_class; ?>"><?php echo htmlspecialchars($skill['skill_name']); ?></div>
+                            <a href="../skills/view.php?id=<?php echo $skill['id']; ?>" class="<?php echo $name_class; ?>" style="font-weight: bold; text-decoration: none;"><?php echo htmlspecialchars($skill['skill_name']); ?></a>
                             <div class="skill-description"><?php echo nl2br(htmlspecialchars($skill['skill_description'])); ?></div>
+                            <?php if (!empty($skill['base_skill_name'])): ?>
+                                <div class="evolution-source">
+                                    進化元: <a href="../skills/view.php?id=<?php echo $skill['base_skill_id']; ?>"><?php echo htmlspecialchars($skill['base_skill_name']); ?></a>
+                                </div>
+                            <?php endif; ?>
                         </td>
                         <td><?php echo htmlspecialchars($skill['skill_type']); ?></td>
-                        <td><?php echo htmlspecialchars($skill['unlock_condition']); ?></td>
+                        <td>
+                            <?php echo htmlspecialchars($skill['unlock_condition']); ?>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

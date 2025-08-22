@@ -9,10 +9,37 @@ $conn->set_charset("utf8mb4");
 $result_settings = $conn->query("SELECT setting_value FROM settings WHERE setting_key = 'edit_mode_enabled'");
 $edit_mode_enabled = ($result_settings && $result_settings->fetch_assoc()['setting_value'] == 1);
 
-// --- 絞り込み条件の受け取り ---
+// ★★★ 変更点：名前を分割する関数をこちらにも追加 ★★★
+function splitCharacterName($fullName) {
+    $prefixes = [];
+    $main = $fullName;
+    if (preg_match('/(.*)(【(.+?)】|\((.+?)\))$/u', $main, $matches)) {
+        $main = trim($matches[1]);
+        $suffixContent = !empty($matches[3]) ? $matches[3] : $matches[4];
+        array_unshift($prefixes, $suffixContent);
+    }
+    if (preg_match('/^([\[【](.+?)[\]】])(.*)/u', $main, $matches)) {
+        $main = trim($matches[3]);
+        $prefixes[] = $matches[2];
+    }
+    $prefix_words = ['水着'];
+    foreach ($prefix_words as $p) {
+        if (strpos($main, $p) === 0) {
+            if (!in_array($p, $prefixes)) {
+                 $prefixes[] = $p;
+            }
+            $main = trim(substr($main, strlen($p)));
+            break;
+        }
+    }
+    return ['prefix' => implode(' ', $prefixes), 'main' => trim($main)];
+}
+
+// --- (既存の絞り込み処理は変更なし) ---
 $search_name = $_GET['search_name'] ?? '';
 $rarity = $_GET['rarity'] ?? '';
 $sort_key = $_GET['sort'] ?? 'id_desc';
+// (以下、適性や成長率の絞り込み処理...)
 $aptitudes = [
     'apt_turf' => 'surface_aptitude_turf', 'apt_dirt' => 'surface_aptitude_dirt',
     'apt_short' => 'distance_aptitude_short', 'apt_mile' => 'distance_aptitude_mile',
@@ -21,8 +48,6 @@ $aptitudes = [
     'apt_chaser' => 'strategy_aptitude_chaser', 'apt_trailer' => 'strategy_aptitude_trailer'
 ];
 $growth_filters = $_GET['growth'] ?? [];
-
-// --- SQLのWHERE句を動的に組み立て ---
 $where_clauses = [];
 $bind_params = [];
 $bind_types = '';
@@ -52,14 +77,10 @@ if (!empty($growth_filters)) {
         }
     }
 }
-
-// --- SQLクエリの組み立て ---
 $sql = "SELECT id, character_name, rarity, image_url, image_url_suit FROM characters";
 if (!empty($where_clauses)) {
     $sql .= " WHERE " . implode(' AND ', $where_clauses);
 }
-
-// 並べ替え
 if ($sort_key === 'name_asc') { $sql .= " ORDER BY character_name ASC"; } 
 else { $sql .= " ORDER BY id DESC"; }
 
@@ -86,7 +107,17 @@ if ($result && $result->num_rows > 0):
             </div>
             <div class="character-card-info">
                 <span class="character-card-rarity"><?php echo str_repeat('★', $row['rarity']); ?></span>
-                <h3 class="character-card-name"><?php echo htmlspecialchars($row['character_name']); ?></h3>
+                <h3 class="character-card-name">
+                    <?php
+                        $name_parts = splitCharacterName($row['character_name']);
+                    ?>
+                    <span class="char-name-prefix">
+                        <?php echo htmlspecialchars($name_parts['prefix']) ?: '&nbsp;'; ?>
+                    </span>
+                    <span class="char-name-main">
+                        <?php echo htmlspecialchars($name_parts['main']); ?>
+                    </span>
+                </h3>
             </div>
             <div class="character-card-actions">
                 <?php if ($edit_mode_enabled): ?>
