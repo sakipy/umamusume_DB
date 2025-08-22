@@ -14,6 +14,10 @@ if ($conn->connect_error) {
     die('接続失敗: ' . $conn->connect_error);
 }
 
+// ▼▼▼【修正】キャラクターの総数を取得するクエリを追加 ▼▼▼
+$total_characters_result = $conn->query("SELECT COUNT(*) as count FROM characters");
+$total_characters = $total_characters_result->fetch_assoc()['count'];
+
 // --- フォーム表示用の選択肢を定義 ---
 $sort_options = ['id_desc' => '新着順', 'name_asc' => 'あいうえお順'];
 $rarity_options = ['3' => '★3', '2' => '★2', '1' => '★1'];
@@ -26,6 +30,10 @@ require_once __DIR__ . '/../templates/header.php';
 
 <div class="container full-width">
     <h1>ウマ娘管理</h1>
+
+    <div class="summary-bar">
+        <span>登録数: <?php echo $total_characters; ?>人</span>
+    </div>
 
     <form id="filterForm">
         <div class="controls-container">

@@ -81,7 +81,7 @@
     overflow: hidden; 
     position: relative; 
 }
-.character-card-image-wrapper .no-image, .character-card-image-wrapper img { width: 100%; height: 100%; object-fit: cover; background-color: #e9ecef; }
+.character-card-image-wrapper .no-image, .character-card-image-wrapper img { width: 100%; height: 100%; object-fit: cover; background-color: white; }
 .character-card-info { padding: 12px; text-align: center; border-top: 1px solid #eee; }
 .character-card-rarity { font-size: 1.1em; color: #f39c12; }
 .character-card-name { margin: 4px 0 8px 0; font-size: 1.1em; font-weight: 700; }

@@ -505,6 +505,7 @@ $base_path = '../';
         </div>
     </div>
     
+    <div class="view-grid-container">
     <div class="container" style="margin-top: 30px;">
         <h2 class="section-title">このスキルを持つウマ娘</h2>
         <?php if (!empty($characters)): ?>

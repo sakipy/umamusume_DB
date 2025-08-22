@@ -118,5 +118,15 @@
         "background_position_y": -8,
         "background_size": 200,
         "confidence": 0.1
+    },
+    "メジロパーマー(クリスマス)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "キタサンブラック": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
     }
 }

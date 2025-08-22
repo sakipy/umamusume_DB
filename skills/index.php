@@ -3,6 +3,17 @@ $page_title = 'スキル一覧';
 $current_page = 'skills';
 $base_path = '../'; // このページから見たときのパスの基点
 
+// ========== DB接続 ==========
+$conn = new mysqli('localhost', 'root', '', 'umamusume_db');
+if ($conn->connect_error) {
+    die("DB接続失敗: " . $conn->connect_error);
+}
+$conn->set_charset("utf8mb4");
+
+// ▼▼▼【修正】DB接続後にクエリを実行するよう順番を修正 ▼▼▼
+$total_skills_result = $conn->query("SELECT COUNT(*) as count FROM skills");
+$total_skills = $total_skills_result->fetch_assoc()['count'];
+
 // --- フォーム表示用の選択肢を定義 ---
 $sort_options = ['id_desc' => '新着順', 'name_asc' => 'あいうえお順'];
 $distance_options = ['短距離', 'マイル', '中距離', '長距離'];
@@ -24,6 +35,11 @@ require_once __DIR__ . '/../templates/header.php'; // 共通ヘッダーを読�
 
 <div class="container full-width">
     <h1>スキル管理</h1>
+
+    <div class="summary-bar">
+        <span>登録数: <?php echo $total_skills; ?>件</span>
+    </div>
+
     <form id="filterForm">
         <div class="controls-container">
             <div class="page-actions">
