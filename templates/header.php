@@ -58,7 +58,6 @@ if (!$conn_header->connect_error) {
             <a href="<?php echo $base_path; ?>racecourses/index.php" class="<?php if ($current_page === 'racecourses') echo 'active'; ?>">競馬場</a>
             <a href="<?php echo $base_path; ?>settings/index.php" class="<?php if ($current_page === 'settings') echo 'active'; ?>">設定</a>
         </nav>
-        </nav>
     </div>
 </header>
 

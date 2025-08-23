@@ -198,5 +198,25 @@
         "background_position_y": -8,
         "background_size": 200,
         "confidence": 0.1
+    },
+    "ヒシミラクル": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "メジロブライト(クリスマス)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ウイニングチケット(新衣装)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "クロノジェネシス": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
     }
 }

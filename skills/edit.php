@@ -58,19 +58,18 @@ $saved_surfaces = !empty($skill['surface_type']) ? explode(',', $skill['surface_
 
 <?php include '../templates/header.php'; ?>
 
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>スキル編集</title>
-    <link rel="stylesheet" href="../common_style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
-    <style> .checkbox-group { display: flex; gap: 20px; flex-wrap: wrap; } .checkbox-group label { font-weight: normal; } </style>
-</head>
-<body>
-    <div class="container">
+<style> 
+    .checkbox-group { 
+        display: flex; 
+        gap: 20px; 
+        flex-wrap: wrap; 
+    } 
+    .checkbox-group label { 
+        font-weight: normal; 
+    } 
+</style>
+
+<div class="container">
         <h1>スキル情報を編集</h1>
         <?php if (!empty($error_message)): ?><div class="message error"><?php echo $error_message; ?></div><?php endif; ?>
         <?php if ($skill): ?>
@@ -128,7 +127,5 @@ $saved_surfaces = !empty($skill['surface_type']) ? explode(',', $skill['surface_
         <a href="index.php" class="back-link">&laquo; スキル一覧に戻る</a>
         <?php endif; ?>
     </div>
-</body>
-</html>
 
 <?php include '../templates/footer.php'; ?>

@@ -121,23 +121,21 @@ function registerOrUpdateSkill($conn, $skill_name, $skill_description, $skill_ty
         }
     }
 }
+
+$page_title = '一括インポート実行ログ';
+$current_page = 'characters';
+$base_path = '../';
+
+include '../templates/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>一括インポート実行ログ</title>
-    <link rel="stylesheet" href="../css/base.css">
-    <style>
-        body { 
-            background: #f4f7f9; 
-        }
-        .container { 
-            max-width: 800px; 
-            margin: 20px auto; 
-            padding: 20px; 
-            background: #fff; 
-            border-radius: 8px; 
+
+<style>
+    .container { 
+        max-width: 800px; 
+        margin: 20px auto; 
+        padding: 20px; 
+        background: #fff; 
+        border-radius: 8px; 
             box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
         }
         h1 { 
@@ -944,5 +942,5 @@ try {
             <a href="index.php" class="button">&laquo; ウマ娘一覧に戻る</a>
         </div>
     </div>
-</body>
-</html>
+
+<?php include '../templates/footer.php'; ?>

@@ -44,19 +44,18 @@ $surface_options = ['芝', 'ダート']; // ★ この行を追加
 
 <?php include '../templates/header.php'; ?>
 
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>スキル追加</title>
-    <link rel="stylesheet" href="../common_style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
-    <style> .checkbox-group { display: flex; gap: 20px; flex-wrap: wrap; } .checkbox-group label { font-weight: normal; } </style>
-</head>
-<body>
-    <div class="container">
+<style> 
+    .checkbox-group { 
+        display: flex; 
+        gap: 20px; 
+        flex-wrap: wrap; 
+    } 
+    .checkbox-group label { 
+        font-weight: normal; 
+    } 
+</style>
+
+<div class="container">
         <h1>新しいスキルを登録</h1>
         <?php if (!empty($message)): ?><div class="message success"><?php echo $message; ?></div><?php endif; ?>
         <?php if (!empty($error_message)): ?><div class="message error"><?php echo $error_message; ?></div><?php endif; ?>
@@ -113,7 +112,5 @@ $surface_options = ['芝', 'ダート']; // ★ この行を追加
         </form>
         <a href="index.php" class="back-link">&laquo; スキル一覧に戻る</a>
     </div>
-</body>
-</html>
 
 <?php include '../templates/footer.php'; ?>

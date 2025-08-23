@@ -62,19 +62,8 @@ $conn->close();
 
 <?php include '../templates/header.php'; ?>
 
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>競馬場編集</title>
-    <link rel="stylesheet" href="../common_style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
-</head>
-<body>
-    <div class="container">
-        <h1>競馬場情報を編集</h1>
+<div class="container">
+    <h1>競馬場情報を編集</h1>
         <?php if (!empty($error_message)): ?><div class="message error"><?php echo $error_message; ?></div><?php endif; ?>
         <?php if ($racecourse): ?>
         <form action="edit.php" method="POST" enctype="multipart/form-data">
@@ -152,7 +141,5 @@ $conn->close();
         });
     });
     </script>
-</body>
-</html>
 
 <?php include '../templates/footer.php'; ?>
