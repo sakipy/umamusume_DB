@@ -10,84 +10,76 @@
     </div>
 
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // --- 画面遷移アニメーション ---
-        const links = document.querySelectorAll('a');
+document.addEventListener('DOMContentLoaded', function() {
+    // --- 画面遷移アニメーション (イベントデリゲーション方式) ---
+    document.body.addEventListener('click', function(event) {
+        // クリックされた要素、またはその親要素をたどって遷移先を探す
+        const linkElement = event.target.closest('a[href]');
+        const clickableElement = event.target.closest('[data-href]');
 
-        links.forEach(function(link) {
-            link.addEventListener('click', function(event) {
-                const url = this.href;
-                const linkElement = event.target.closest('a');
+        let targetUrl = null;
 
-                // 対象外のリンク（外部リンク、ページ内リンク、削除ボタンなど）は何もしない
-                if (!linkElement || !url || url.includes('#') || url.startsWith('mailto:') || url.startsWith('javascript:') || linkElement.target === '_blank' || linkElement.classList.contains('delete-link')) {
-                    return;
-                }
-
-                // 通常のページ遷移を一旦キャンセル
-                event.preventDefault();
-
-                // フェードアウト用のクラスをbodyに追加
-                document.body.classList.add('body-fade-out');
-
-                // アニメーションの時間(0.3秒)待ってから、ページを移動
-                setTimeout(function() {
-                    window.location.href = url;
-                }, 300);
-            });
-        });
-
-        // --- 削除確認モーダル ---
-        const modal = document.getElementById('confirm-modal');
-        if (modal) {
-            const modalText = document.getElementById('confirm-modal-text');
-            const yesButton = document.getElementById('confirm-modal-yes');
-            const noButton = document.getElementById('confirm-modal-no');
-
-            document.body.addEventListener('click', function(event) {
-                const deleteLink = event.target.closest('.delete-link');
-                if (deleteLink) {
-                    event.preventDefault();
-                    const itemName = deleteLink.dataset.itemName || '';
-                    const url = deleteLink.href;
-                    modalText.textContent = '本当に「' + itemName + '」を削除しますか？';
-                    yesButton.href = url;
-                    modal.classList.add('active');
-                }
-            });
-
-            noButton.addEventListener('click', function() { modal.classList.remove('active'); });
-            modal.addEventListener('click', function(event) { if (event.target === modal) { modal.classList.remove('active'); } });
+        if (clickableElement) {
+            // data-href属性を持つ要素を優先
+            targetUrl = clickableElement.dataset.href;
+        } else if (linkElement) {
+            // aタグのリンク先を取得
+            const href = linkElement.getAttribute('href');
+            // ページ遷移と関係ないリンク（外部リンク、ページ内リンク、削除ボタンなど）は除外
+            if (href && !href.startsWith('#') && !href.startsWith('mailto:') && !href.startsWith('javascript:') && !linkElement.hasAttribute('target') && !linkElement.classList.contains('delete-link')) {
+                targetUrl = href;
+            }
         }
-    /* ========== ここから下を追記 ========== */
 
-        // --- スクロールヘッダーの表示/非表示 ---
-        const mainHeader = document.querySelector('.global-header');
-        const scrollHeader = document.querySelector('.scrolling-header');
-
-        if (mainHeader && scrollHeader) {
-            // メインヘッダーの高さを取得
-            const triggerHeight = mainHeader.offsetHeight + 200;
-
-            // スクロールイベントを監視
-            window.addEventListener('scroll', function() {
-                // 現在のスクロール量を取得
-                const scrollY = window.scrollY;
-
-                // スクロール量がメインヘッダーの高さを超えたら
-                if (scrollY > triggerHeight) {
-                    // スクロールヘッダーに 'visible' クラスを付けて表示
-                    scrollHeader.classList.add('visible');
-                } else {
-                    // そうでなければ 'visible' クラスを外して非表示
-                    scrollHeader.classList.remove('visible');
-                }
-            });
+        // 遷移先のURLが見つかった場合のみアニメーションを実行
+        if (targetUrl) {
+            event.preventDefault(); // デフォルトのページ遷移をキャンセル
+            document.body.classList.add('body-fade-out');
+            setTimeout(() => {
+                window.location.href = targetUrl;
+            }, 300); // CSSのアニメーション時間(0.3秒)と合わせる
         }
     });
 
-    
+    // --- 削除確認モーダル ---
+    const modal = document.getElementById('confirm-modal');
+    if (modal) {
+        const modalText = document.getElementById('confirm-modal-text');
+        const yesButton = document.getElementById('confirm-modal-yes');
+        const noButton = document.getElementById('confirm-modal-no');
 
-    </script>
+        document.body.addEventListener('click', function(event) {
+            const deleteLink = event.target.closest('.delete-link');
+            if (deleteLink) {
+                event.preventDefault();
+                const itemName = deleteLink.dataset.itemName || '';
+                const url = deleteLink.href;
+                modalText.textContent = '本当に「' + itemName + '」を削除しますか？';
+                yesButton.href = url;
+                modal.classList.add('active');
+            }
+        });
+
+        noButton.addEventListener('click', function() { modal.classList.remove('active'); });
+        modal.addEventListener('click', function(event) { if (event.target === modal) { modal.classList.remove('active'); } });
+    }
+
+    // --- スクロールヘッダーの表示/非表示 ---
+    const mainHeader = document.querySelector('.global-header');
+    const scrollHeader = document.querySelector('.scrolling-header');
+
+    if (mainHeader && scrollHeader) {
+        const triggerHeight = mainHeader.offsetHeight + 200;
+        window.addEventListener('scroll', function() {
+            if (window.scrollY > triggerHeight) {
+                scrollHeader.classList.add('visible');
+            } else {
+                scrollHeader.classList.remove('visible');
+            }
+        });
+    }
+});
+
+</script>
 </body>
 </html>

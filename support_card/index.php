@@ -106,10 +106,17 @@ $conn->close();
     
     <form id="filterForm">
         <div class="controls-container">
-            <div class="page-actions">
-                <a href="add_card.php" class="add-link">新しいカードを追加する</a>
+            <div class="top-controls">
+                <div class="page-actions">
+                    <a href="add_card.php" class="add-link">新しいカードを追加する</a>
+                </div>
+                <div class="view-options">
+                    <button type="button" id="sc-view-mode-default" class="view-mode-btn active">名前あり</button>
+                    <button type="button" id="sc-view-mode-simple" class="view-mode-btn">画像のみ</button>
+                </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 15px;">
+
+            <div class="bottom-controls">
                 <button type="button" id="open-advanced-filter" class="action-button button-edit">詳細絞り込み</button>
                 <div class="active-filters-container" id="active-filters-container">
                     <?php echo $initial_badge_html; ?>
@@ -378,6 +385,44 @@ $conn->close();
                 }
             });
         });
+
+        // --- サポートカード管理 表示モード切り替え ---
+        const supportCardGrid = document.getElementById('card-grid-container');
+        const scViewModeDefaultBtn = document.getElementById('sc-view-mode-default');
+        const scViewModeSimpleBtn = document.getElementById('sc-view-mode-simple');
+
+        // 対象の要素が存在するページでのみ実行
+        if (supportCardGrid && scViewModeDefaultBtn && scViewModeSimpleBtn) {
+            
+            // モードを適用する関数
+            const applyScViewMode = (mode) => {
+                if (mode === 'simple') {
+                    supportCardGrid.classList.add('image-only-view');
+                    scViewModeSimpleBtn.classList.add('active');
+                    scViewModeDefaultBtn.classList.remove('active');
+                } else {
+                    supportCardGrid.classList.remove('image-only-view');
+                    scViewModeDefaultBtn.classList.add('active');
+                    scViewModeSimpleBtn.classList.remove('active');
+                }
+            };
+
+            // 「名前あり」ボタンのクリックイベント
+            scViewModeDefaultBtn.addEventListener('click', () => {
+                localStorage.setItem('supportCardViewMode', 'default');
+                applyScViewMode('default');
+            });
+
+            // 「画像のみ」ボタンのクリックイベント
+            scViewModeSimpleBtn.addEventListener('click', () => {
+                localStorage.setItem('supportCardViewMode', 'simple');
+                applyScViewMode('simple');
+            });
+
+            // ページ読み込み時に保存された設定を適用
+            const savedScMode = localStorage.getItem('supportCardViewMode') || 'default';
+            applyScViewMode(savedScMode);
+        }
         // --- ページの初回読み込み時に一度検索を実行 ---
         performSearch();
     });

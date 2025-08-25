@@ -603,48 +603,27 @@ body.edit-mode-on .race-actions {
     text-align: center;
 }
 
-/* カード専用の退出アニメーション */
-body.umamusume-card-exit {
-    animation: cardExit 0.25s cubic-bezier(0.4, 0.0, 0.6, 1) forwards;
+/* ================================================================
+    コントロールエリアの2段構成レイアウト
+================================================================ */
+.controls-container {
+    display: flex;
+    flex-direction: column; /* 上下に要素を並べる */
+    gap: 15px; /* 上段と下段の間のスペース */
 }
 
-@keyframes cardExit {
-    0% {
-        transform: scale(1) translateY(0);
-        opacity: 1;
-        filter: brightness(1) saturate(1);
-    }
-    50% {
-        transform: scale(1.05) translateY(-10px);
-        opacity: 0.8;
-        filter: brightness(1.2) saturate(1.3);
-    }
-    100% {
-        transform: scale(0.9) translateY(-30px);
-        opacity: 0;
-        filter: brightness(0.8) saturate(0.5);
-    }
+.top-controls, .bottom-controls {
+    display: flex;
+    justify-content: space-between; /* 両端に配置 */
+    align-items: center;
+    width: 100%;
 }
 
-/* カード入場時の特別なアニメーション */
-body.umamusume-card-enter {
-    animation: cardEnter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+.bottom-controls {
+    justify-content: flex-start; /* 左から配置 */
+    gap: 15px; /* ボタンとフィルター表示の間のスペース */
 }
 
-@keyframes cardEnter {
-    0% {
-        transform: scale(0.8) translateY(50px);
-        opacity: 0;
-        filter: brightness(1.3) saturate(1.5) blur(3px);
-    }
-    70% {
-        transform: scale(1.02) translateY(-5px);
-        opacity: 0.9;
-        filter: brightness(1.1) saturate(1.2) blur(1px);
-    }
-    100% {
-        transform: scale(1) translateY(0);
-        opacity: 1;
-        filter: brightness(1) saturate(1) blur(0);
-    }
+.view-options {
+    margin-left: 0; /* 不要なマージンをリセット */
 }

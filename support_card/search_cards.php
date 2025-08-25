@@ -99,6 +99,8 @@ if ($result && $result->num_rows > 0):
         elseif ($row['rarity'] === 'R') { $rarity_class = 'rarity-r'; }
 ?>
         <div class="card-item <?php echo $rarity_class; ?>">
+            <a href="view.php?id=<?php echo $row['id']; ?>" class="stretched-link"></a>
+
             <div class="card-image-wrapper">
                 <?php if (!empty($row['image_url']) && file_exists($row['image_url'])): ?>
                     <img src="<?php echo htmlspecialchars($row['image_url']); ?>" alt="<?php echo htmlspecialchars($row['card_name']); ?>" class="card-image">
@@ -107,7 +109,7 @@ if ($result && $result->num_rows > 0):
                 <?php endif; ?>
             </div>
             <h3 class="card-name">
-                <a href="view.php?id=<?php echo $row['id']; ?>" class="stretched-link"><?php echo htmlspecialchars($row['card_name']); ?></a>
+                <span><?php echo htmlspecialchars($row['card_name']); ?></span>
             </h3>
             <div class="card-actions">
                 <?php if ($edit_mode_enabled): ?>

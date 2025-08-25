@@ -221,3 +221,87 @@
     padding: 15px;
     background-color: #fdfdfd;
 }
+
+/* ===== 表示切り替えボタン ===== */
+.view-options {
+    margin-left: 20px;
+}
+
+.view-mode-btn {
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    padding: 8px 16px;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 14px;
+    margin-left: 5px;
+    font-weight: bold;
+}
+
+.view-mode-btn.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+/* ================================================================
+    コントロールエリアのレイアウト調整
+================================================================ */
+
+/* 表示切り替えボタンのコンテナ */
+.view-options {
+    margin-left: auto; /* ★この一行で右端に配置します */
+}
+
+/* 表示切り替えボタンのスタイル */
+.view-mode-btn {
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    padding: 6px 14px; /* 少し小さく調整 */
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 13px;
+    font-weight: bold;
+    margin-left: 5px;
+}
+
+/* アクティブなボタンのスタイル */
+.view-mode-btn.active {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+
+/* ================================================================
+    「画像のみ」表示モードのスタイル
+================================================================ */
+
+/* カード本体の背景や余白、枠線をリセット */
+.character-card-grid.image-only-view .character-card-item {
+    background: none;
+    padding: 0;
+    box-shadow: none;
+}
+
+/* 名前の部分を非表示にする */
+.character-card-grid.image-only-view .character-card-info {
+    display: none;
+}
+
+/* 編集・削除ボタンのエリアを非表示にする */
+.character-card-grid.image-only-view .character-card-actions {
+    display: none;
+}
+
+/* 画像のラッパーにマウスホバー時のエフェクトを設定 */
+.character-card-grid.image-only-view .character-card-image-wrapper {
+    transition: transform 0.2s ease-in-out;
+    border-radius: 12px; /* 画像の角を丸くする */
+}
+
+.character-card-grid.image-only-view .character-card-item:hover .character-card-image-wrapper {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+

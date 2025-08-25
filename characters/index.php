@@ -77,14 +77,23 @@ require_once __DIR__ . '/../templates/header.php';
 
     <form id="filterForm">
         <div class="controls-container">
-            <div class="page-actions">
-                <a href="add.php" class="add-link">新しいウマ娘を追加する</a>
-                <a href="import.php" class="add-link" style="background-color: #f39c12; border-color: #d68910;">URLを指定してインポート</a>
-                <a href="scrape_all.php" class="add-link" style="background-color: #e74c3c; border-color: #c0392b;">未登録データを一括インポート</a>
+            <div class="top-controls">
+                <div class="page-actions">
+                    <a href="add.php" class="add-link">新しいウマ娘を追加する</a>
+                    <a href="import.php" class="add-link" style="background-color: #f39c12; border-color: #d68910;">URLを指定してインポート</a>
+                    <a href="scrape_all.php" class="add-link" style="background-color: #e74c3c; border-color: #c0392b;">未登録データを一括インポート</a>
+                </div>
+                <div class="view-options">
+                    <button type="button" id="view-mode-default" class="view-mode-btn active">名前あり</button>
+                    <button type="button" id="view-mode-simple" class="view-mode-btn">画像のみ</button>
+                </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <button type="button" id="open-advanced-filter" class="action-button button-edit">詳細絞り込み</button>
-                <div class="active-filters-container" id="active-filters-container"></div>
+
+            <div class="bottom-controls">
+                <div class="filter-actions">
+                    <button type="button" id="open-advanced-filter" class="action-button button-edit">詳細絞り込み</button>
+                    <div class="active-filters-container" id="active-filters-container"></div>
+                </div>
             </div>
         </div>
 
@@ -207,6 +216,44 @@ document.addEventListener('DOMContentLoaded', function() {
         closeBtn.addEventListener('click', closeModal);
         applyBtn.addEventListener('click', closeModal);
         modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
+    }
+    
+    // --- ウマ娘管理 表示モード切り替え ---
+    const characterGrid = document.getElementById('character-card-grid');
+    const viewModeDefaultBtn = document.getElementById('view-mode-default');
+    const viewModeSimpleBtn = document.getElementById('view-mode-simple');
+
+    // 対象の要素が存在するページでのみ実行
+    if (characterGrid && viewModeDefaultBtn && viewModeSimpleBtn) {
+        
+        // モードを適用する関数
+        const applyViewMode = (mode) => {
+            if (mode === 'simple') {
+                characterGrid.classList.add('image-only-view');
+                viewModeSimpleBtn.classList.add('active');
+                viewModeDefaultBtn.classList.remove('active');
+            } else {
+                characterGrid.classList.remove('image-only-view');
+                viewModeDefaultBtn.classList.add('active');
+                viewModeSimpleBtn.classList.remove('active');
+            }
+        };
+
+        // 「名前あり」ボタンのクリックイベント
+        viewModeDefaultBtn.addEventListener('click', () => {
+            localStorage.setItem('characterViewMode', 'default');
+            applyViewMode('default');
+        });
+
+        // 「画像のみ」ボタンのクリックイベント
+        viewModeSimpleBtn.addEventListener('click', () => {
+            localStorage.setItem('characterViewMode', 'simple');
+            applyViewMode('simple');
+        });
+
+        // ページ読み込み時に保存された設定を適用
+        const savedMode = localStorage.getItem('characterViewMode') || 'default';
+        applyViewMode(savedMode);
     }
     
     performSearch(); // 初回読み込み

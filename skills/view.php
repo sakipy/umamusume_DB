@@ -536,7 +536,7 @@ $base_path = '../';
                 <div class="evolution-arrow">↓</div>
                 <div class="evolution-section">
                     <h3>進化先スキル</h3>
-                    <div class="evolution-skills two-column">
+                    <div class="evolution-skills <?php echo (count($evolution_evolved) === 1) ? 'single-item' : 'two-column'; ?>">
                         <?php foreach ($evolution_evolved as $evolved_skill): ?>
                         <div class="evolution-skill-item">
                             <a href="view.php?id=<?php echo $evolved_skill['id']; ?>" class="evolution-skill-link">
@@ -566,7 +566,7 @@ $base_path = '../';
         <div class="related-info-container">
             <h2 class="section-title">このスキルを持つウマ娘</h2>
             <?php if (!empty($characters)): ?>
-                <div class="character-list">
+                <div class="character-list two-column">
                     <?php foreach ($characters as $character): ?>
                         <div class="character-item">
                             <a href="../characters/view.php?id=<?php echo $character['id']; ?>">

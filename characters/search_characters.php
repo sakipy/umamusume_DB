@@ -135,7 +135,46 @@ else:
 endif;
 $card_html = ob_get_clean();
 
-$badge_html = ''; 
+// --- 適用中フィルターのHTMLを生成 ---
+$active_filters = [];
+$aptitude_labels = [
+    'apt_turf' => '芝', 'apt_dirt' => 'ダート',
+    'apt_short' => '短距離', 'apt_mile' => 'マイル',
+    'apt_medium' => '中距離', 'apt_long' => '長距離',
+    'apt_runner' => '逃げ', 'apt_leader' => '先行',
+    'apt_chaser' => '差し', 'apt_trailer' => '追込'
+];
+
+foreach ($aptitudes as $key => $column) {
+    if (!empty($_GET[$key])) {
+        // '以上' ではなく、ランクそのものを表示するように文言を調整
+        $active_filters[] = $aptitude_labels[$key] . ": " . htmlspecialchars($_GET[$key]);
+    }
+}
+
+if (!empty($growth_filters)) {
+    $growth_labels = ['speed' => 'スピ', 'stamina' => 'スタ', 'power' => 'パワ', 'guts' => '根性', 'wisdom' => '賢さ'];
+    $applied_growths = [];
+    foreach($growth_filters as $g) {
+        if(isset($growth_labels[$g])) {
+            $applied_growths[] = $growth_labels[$g];
+        }
+    }
+    if(!empty($applied_growths)) {
+        $active_filters[] = "成長率: " . implode(', ', $applied_growths);
+    }
+}
+
+ob_start();
+if (!empty($active_filters)):
+?>
+    <span>適用中の条件:</span>
+    <?php foreach ($active_filters as $filter_text): ?>
+        <span class="filter-badge"><?php echo $filter_text; // htmlspecialcharsは適用済み ?></span>
+    <?php endforeach; ?>
+<?php
+endif;
+$badge_html = ob_get_clean();
 
 // --- 結果をJSONで出力 ---
 $conn->close();

@@ -218,5 +218,55 @@
         "background_position_y": -8,
         "background_size": 200,
         "confidence": 0.1
+    },
+    "マルゼンスキー": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "マヤノトップガン": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "カワカミプリンセス": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ナイスネイチャ(新衣装)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ユキノビジン": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ウオッカ(クリスマス)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "マーベラスサンデー": {
+        "background_position_y": 2,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "ジェンティルドンナ": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "メジロパーマー": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
+    },
+    "アイネスフウジン(新衣装)": {
+        "background_position_y": -8,
+        "background_size": 200,
+        "confidence": 0.1
     }
 }

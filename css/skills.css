@@ -204,3 +204,16 @@
     font-weight: bold; /* 本体名を太字に */
     display: block;    /* 常に改行して下に表示 */
 }
+
+/* 進化スキルが1つの場合に中央揃えにする */
+.evolution-skills.single-item {
+    display: flex;
+    justify-content: center;
+}
+
+/* 「このスキルを持つウマ」を2列表示にする */
+.character-list.two-column {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px; /* カード間の余白 */
+}

@@ -238,3 +238,57 @@
     font-weight: bold;
     font-size: 0.9em;
 }
+
+/* ================================================================
+    「画像のみ」表示モード (サポカ)
+================================================================ */
+
+/* カード本体のスタイルを調整 */
+.card-grid.image-only-view .card-item {
+    padding: 0; /* 内側の余白をなくす */
+    aspect-ratio: 3 / 4; /* カード自体にアスペクト比を設定 */
+    overflow: hidden; /* 画像がはみ出ないようにする */
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; /* ホバーエフェクト用 */
+}
+
+/* 画像ラッパーをカード全体に広げる */
+.card-grid.image-only-view .card-image-wrapper {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: unset; /* 元の比率指定を解除 */
+    border: none; /* ラッパーの枠線は不要 */
+    border-radius: 0; /* カード本体の角丸に合わせる */
+    overflow: hidden; /* 画像がはみ出ないようにする */
+    display: flex; /* 画像を中央に配置するためのFlexbox */
+    align-items: center;
+    justify-content: center;
+}
+
+/* 画像自体のスタイル */
+.card-grid.image-only-view .card-image-wrapper img {
+    height: auto;
+    object-fit: contain; /* 画像全体を表示 */
+    transition: transform 0.2s ease-in-out; /* 画像自体の拡大アニメーション */
+}
+
+/* 名前の部分を非表示にする */
+.card-grid.image-only-view .card-name {
+    display: none;
+}
+
+/* 編集・削除ボタンのエリアを非表示にする */
+.card-grid.image-only-view .card-actions {
+    display: none;
+}
+
+/* ホバー時のカード本体のエフェクト（影） */
+.card-grid.image-only-view .card-item:hover {
+    transform: scale(1.03); /* 少しだけ拡大 */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* ホバー時の画像の拡大 */
+.card-grid.image-only-view .card-item:hover .card-image-wrapper img {
+    transform: scale(1.05); /* 画像を少し拡大 */
+}
+
