@@ -33,7 +33,8 @@ if (!$conn_header->connect_error) {
     <link rel="stylesheet" href="<?php echo $base_path; ?>css/trained.css">
     <link rel="stylesheet" href="<?php echo $base_path; ?>css/ranks.css">
     <link rel="stylesheet" href="<?php echo $base_path; ?>css/modal.css">
-    
+    <link rel="stylesheet" href="<?php echo $base_path; ?>css/tools.css">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
@@ -53,7 +54,13 @@ if (!$conn_header->connect_error) {
                 </div>
             </div>
             <a href="<?php echo $base_path; ?>support_card/index.php" class="<?php if ($current_page === 'support_card') echo 'active'; ?>">サポートカード</a>
-            <a href="<?php echo $base_path; ?>skills/index.php" class="<?php if ($current_page === 'skills') echo 'active'; ?>">スキル</a>
+            <div class="nav-dropdown">
+                <a href="#" class="nav-link <?php if ($current_page === 'skills' || $current_page === 'tools/skill_analyzer') echo 'active'; ?>">スキル ▼</a>
+                <div class="dropdown-content">
+                    <a href="<?php echo $base_path; ?>skills/index.php">スキル</a>
+                    <a href="<?php echo $base_path; ?>tools/skill_analyzer.php">スキル相性診断</a>
+               </div>
+            </div>
             <a href="<?php echo $base_path; ?>races/index.php" class="<?php if ($current_page === 'races') echo 'active'; ?>">レース</a>
             <a href="<?php echo $base_path; ?>racecourses/index.php" class="<?php if ($current_page === 'racecourses') echo 'active'; ?>">競馬場</a>
             <a href="<?php echo $base_path; ?>settings/index.php" class="<?php if ($current_page === 'settings') echo 'active'; ?>">設定</a>

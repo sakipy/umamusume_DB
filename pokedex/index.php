@@ -31,15 +31,14 @@ $conn->close();
 
 include '../templates/header.php';
 ?>
-
 <div class="container full-width">
+    <h1><?php echo htmlspecialchars($page_title); ?></h1>
+
     <div class="controls-container">
         <div class="page-actions">
             <a href="add.php" class="add-link">新しい図鑑データを追加する</a>
         </div>
     </div>
-    
-    <h1><?php echo htmlspecialchars($page_title); ?></h1>
 
     <div class="tab-container">
         <div class="tab-item active" data-tab="jissou">実装済み (<?php echo count($characters_by_category['実装済み']); ?>)</div>
