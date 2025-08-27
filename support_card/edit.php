@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $stmt_effect->close();
 
-        // 3. 所持スキルの更新
+        // 3. 所持スキルの更新（関係性と順序も含む）
         $skill_ids = $_POST['skill_ids'] ?? [];
         $stmt_delete_skills = $conn->prepare("DELETE FROM support_card_skills WHERE support_card_id = ?");
         $stmt_delete_skills->bind_param("i", $id);
@@ -116,10 +116,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt_delete_skills->close();
         
         if (!empty($skill_ids)) {
-            $stmt_insert_skill = $conn->prepare("INSERT INTO support_card_skills (support_card_id, skill_id) VALUES (?, ?)");
-            foreach ($skill_ids as $skill_id) {
-                $stmt_insert_skill->bind_param("ii", $id, $skill_id);
-                $stmt_insert_skill->execute();
+            $stmt_insert_skill = $conn->prepare("INSERT INTO support_card_skills (support_card_id, skill_id, skill_relation, skill_order) VALUES (?, ?, ?, ?)");
+            foreach ($skill_ids as $order => $skill_id) {
+                $skill_id = (int)$skill_id;
+                if ($skill_id > 0) {
+                    // スキル関係の取得（最初のスキル以外）
+                    $skill_relation = 'and'; // デフォルト
+                    if ($order > 0 && isset($_POST['skill_relations'][$order])) {
+                        $skill_relation = $_POST['skill_relations'][$order];
+                    }
+                    
+                    $stmt_insert_skill->bind_param("iisi", $id, $skill_id, $skill_relation, $order);
+                    $stmt_insert_skill->execute();
+                }
             }
             $stmt_insert_skill->close();
         }
@@ -167,12 +176,36 @@ $result_skills = $conn->query("SELECT * FROM skills ORDER BY skill_name ASC");
 while ($row = $result_skills->fetch_assoc()) { $all_skills[] = $row; }
 
 $current_skill_ids = [];
-$stmt_current_skills = $conn->prepare("SELECT skill_id FROM support_card_skills WHERE support_card_id = ?");
+$current_skill_relations = [];
+$stmt_current_skills = $conn->prepare("SELECT skill_id, skill_relation, skill_order FROM support_card_skills WHERE support_card_id = ? ORDER BY skill_order ASC");
 $stmt_current_skills->bind_param("i", $id);
 $stmt_current_skills->execute();
 $result_current_skills = $stmt_current_skills->get_result();
-while ($row = $result_current_skills->fetch_assoc()) { $current_skill_ids[] = $row['skill_id']; }
+while ($row = $result_current_skills->fetch_assoc()) { 
+    $current_skill_ids[] = $row['skill_id']; 
+    $current_skill_relations[$row['skill_id']] = [
+        'relation' => $row['skill_relation'] ?? 'and',
+        'order' => $row['skill_order'] ?? 0
+    ];
+}
 $stmt_current_skills->close();
+
+// スキル絞り込み用の選択肢を生成
+$skill_type_options = [];
+$distance_options = [];
+$strategy_options = [];
+
+foreach ($all_skills as $skill) {
+    if (!empty($skill['skill_type']) && !in_array($skill['skill_type'], $skill_type_options)) {
+        $skill_type_options[] = $skill['skill_type'];
+    }
+    if (!empty($skill['distance_type']) && !in_array($skill['distance_type'], $distance_options)) {
+        $distance_options[] = $skill['distance_type'];
+    }
+    if (!empty($skill['strategy_type']) && !in_array($skill['strategy_type'], $strategy_options)) {
+        $strategy_options[] = $skill['strategy_type'];
+    }
+}
 
 $conn->close();
 include '../templates/header.php';
@@ -258,52 +291,114 @@ include '../templates/header.php';
 
         <hr>
         <div class="skill-selection-area">
-            <h2>所持スキル</h2>
-            <div class="skill-filter-form">
-                <div class="form-group">
-                    <label for="skill_filter_type">タイプ:</label>
-                    <select id="skill_filter_type">
-                        <option value="">すべて</option>
-                        <?php foreach($skill_type_options as $option): ?><option value="<?php echo $option; ?>"><?php echo $option; ?></option><?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="skill_filter_distance">距離:</label>
-                    <select id="skill_filter_distance">
-                        <option value="">すべて</option>
-                        <?php foreach($distance_options as $option): ?><option value="<?php echo $option; ?>"><?php echo $option; ?></option><?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="skill_filter_strategy">脚質:</label>
-                    <select id="skill_filter_strategy">
-                        <option value="">すべて</option>
-                        <?php foreach($strategy_options as $option): ?><option value="<?php echo $option; ?>"><?php echo $option; ?></option><?php endforeach; ?>
-                    </select>
+            <!-- 選択済みスキル表示 -->
+            <div class="selected-skills-section">
+                <h2>選択済みスキル（関係性設定可能）</h2>
+                <div id="selected-skills" class="selected-skills-list">
+                    <?php 
+                    // スキルを順序でソート
+                    $ordered_skills = [];
+                    foreach ($current_skill_ids as $skill_id) {
+                        $order = $current_skill_relations[$skill_id]['order'] ?? count($ordered_skills);
+                        $ordered_skills[$order] = $skill_id;
+                    }
+                    ksort($ordered_skills);
+                    
+                    if (empty($ordered_skills)): ?>
+                        <div class="no-skills-message">
+                            <p class="text-muted">スキルが登録されていません</p>
+                            <small>下記のスキル一覧から追加してください</small>
+                        </div>
+                    <?php else:
+                        foreach ($ordered_skills as $order => $skill_id): 
+                            $skill_info = array_filter($all_skills, function($s) use ($skill_id) { return $s['id'] == $skill_id; });
+                            $skill_info = reset($skill_info);
+                            if ($skill_info):
+                                $text_class = '';
+                                if ($skill_info['skill_type'] == 'レアスキル') { $text_class = 'text-rare'; } 
+                                elseif ($skill_info['skill_type'] == '進化スキル') { $text_class = 'text-evolution'; }
+                                elseif ($skill_info['skill_type'] == '固有スキル') { $text_class = 'text-rainbow'; }
+                                
+                                $current_relation = $current_skill_relations[$skill_id]['relation'] ?? 'and';
+                        ?>
+                            <div class="selected-skill-item" data-skill-id="<?php echo $skill_id; ?>">
+                                <input type="hidden" name="skill_ids[]" value="<?php echo $skill_id; ?>">
+                                <div class="skill-info">
+                                    <span class="<?php echo $text_class; ?>"><?php echo htmlspecialchars($skill_info['skill_name']); ?></span>
+                                    <small><?php echo htmlspecialchars($skill_info['skill_type']); ?></small>
+                                </div>
+                                <?php if ($order > 0): ?>
+                                    <div class="skill-relation-selector">
+                                        <label>関係性:</label>
+                                        <select name="skill_relations[<?php echo $order; ?>]">
+                                            <option value="and" <?php echo $current_relation == 'and' ? 'selected' : ''; ?>>＋（AND）</option>
+                                            <option value="or" <?php echo $current_relation == 'or' ? 'selected' : ''; ?>>or（OR）</option>
+                                        </select>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="skill-relation-info">
+                                        <small class="text-muted">最初のスキル</small>
+                                    </div>
+                                <?php endif; ?>
+                                <button type="button" class="remove-skill-btn" onclick="removeSkill(<?php echo $skill_id; ?>)">×</button>
+                            </div>
+                        <?php 
+                            endif;
+                        endforeach;
+                    endif;
+                    ?>
                 </div>
             </div>
 
-            <div class="skill-list-wrapper">
-                <ul class="skill-list grid-layout" id="skill-list-container">
-                    <?php foreach ($all_skills as $skill): ?>
-                        <li data-type="<?php echo htmlspecialchars($skill['skill_type']); ?>"
-                            data-distance="<?php echo htmlspecialchars($skill['distance_type']); ?>"
-                            data-strategy="<?php echo htmlspecialchars($skill['strategy_type']); ?>"
-                            <?php if(in_array($skill['id'], $current_skill_ids)) echo 'class="selected"'; ?>>
-                            <label>
-                                <input type="checkbox" name="skill_ids[]" value="<?php echo $skill['id']; ?>" 
-                                    <?php if (in_array($skill['id'], $current_skill_ids)) echo 'checked'; ?>>
-                                <?php
-                                    $text_class = '';
-                                    if ($skill['skill_type'] == 'レアスキル') { $text_class = 'text-rare'; } 
-                                    elseif ($skill['skill_type'] == '進化スキル') { $text_class = 'text-evolution'; }
-                                    elseif ($skill['skill_type'] == '固有スキル') { $text_class = 'text-rainbow'; }
-                                ?>
-                                <span class="<?php echo $text_class; ?>"><?php echo htmlspecialchars($skill['skill_name']); ?></span>
-                            </label>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
+            <!-- スキル選択 -->
+            <div class="skill-selection-section">
+                <h3>スキル追加</h3>
+                <div class="skill-filter-form">
+                    <div class="form-group">
+                        <label for="skill_filter_type">タイプ:</label>
+                        <select id="skill_filter_type">
+                            <option value="">すべて</option>
+                            <?php foreach($skill_type_options as $option): ?><option value="<?php echo $option; ?>"><?php echo $option; ?></option><?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="skill_filter_distance">距離:</label>
+                        <select id="skill_filter_distance">
+                            <option value="">すべて</option>
+                            <?php foreach($distance_options as $option): ?><option value="<?php echo $option; ?>"><?php echo $option; ?></option><?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="skill_filter_strategy">脚質:</label>
+                        <select id="skill_filter_strategy">
+                            <option value="">すべて</option>
+                            <?php foreach($strategy_options as $option): ?><option value="<?php echo $option; ?>"><?php echo $option; ?></option><?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="skill-list-wrapper">
+                    <ul class="skill-list grid-layout" id="skill-list-container">
+                        <?php foreach ($all_skills as $skill): ?>
+                            <li data-type="<?php echo htmlspecialchars($skill['skill_type']); ?>"
+                                data-distance="<?php echo htmlspecialchars($skill['distance_type']); ?>"
+                                data-strategy="<?php echo htmlspecialchars($skill['strategy_type']); ?>"
+                                data-skill-id="<?php echo $skill['id']; ?>"
+                                <?php if(in_array($skill['id'], $current_skill_ids)) echo 'style="display:none;" data-skill-selected="true"'; ?>>
+                                <button type="button" class="add-skill-btn" onclick="addSkill(<?php echo $skill['id']; ?>, '<?php echo htmlspecialchars($skill['skill_name'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($skill['skill_type'], ENT_QUOTES); ?>')">
+                                    <?php
+                                        $text_class = '';
+                                        if ($skill['skill_type'] == 'レアスキル') { $text_class = 'text-rare'; } 
+                                        elseif ($skill['skill_type'] == '進化スキル') { $text_class = 'text-evolution'; }
+                                        elseif ($skill['skill_type'] == '固有スキル') { $text_class = 'text-rainbow'; }
+                                    ?>
+                                    <span class="<?php echo $text_class; ?>"><?php echo htmlspecialchars($skill['skill_name']); ?></span>
+                                    <small><?php echo htmlspecialchars($skill['skill_type']); ?></small>
+                                </button>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
             </div>
         </div>
 
@@ -314,79 +409,530 @@ include '../templates/header.php';
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // --- スキル絞り込み機能 ---
-        const filterType = document.getElementById('skill_filter_type');
-        const filterDistance = document.getElementById('skill_filter_distance');
-        const filterStrategy = document.getElementById('skill_filter_strategy');
-        const skillItems = document.querySelectorAll('#skill-list-container li');
+document.addEventListener('DOMContentLoaded', function() {
+    // 初期のスキル数を設定
+    let skillOrder = document.querySelectorAll('.selected-skill-item').length;
 
-        function filterSkills() {
-            const type = filterType.value;
-            const distance = filterDistance.value;
-            const strategy = filterStrategy.value;
+    // 既存の選択済みスキルにドラッグ機能を追加
+    document.querySelectorAll('.selected-skill-item').forEach(makeDraggable);
 
-            skillItems.forEach(function(item) {
-                const itemType = item.dataset.type;
-                const itemDistance = item.dataset.distance;
-                const itemStrategy = item.dataset.strategy;
-                const typeMatch = (type === '') || (itemType === type);
-                const distanceMatch = (distance === '') || (itemDistance.includes(distance)) || (itemDistance === '');
-                const strategyMatch = (strategy === '') || (itemStrategy.includes(strategy)) || (itemStrategy === '');
-                if (typeMatch && distanceMatch && strategyMatch) {
-                    item.style.display = '';
-                } else {
-                    item.style.display = 'none';
+    // スキル追加
+    window.addSkill = function(skillId, skillName, skillType) {
+        const selectedSkills = document.getElementById('selected-skills');
+        const skillItem = document.querySelector(`li[data-skill-id="${skillId}"]`);
+        
+        // 関係性セレクタ（最初のスキル以外）
+        const relationHtml = skillOrder > 0 ? `
+            <div class="skill-relation-selector">
+                <label>関係性:</label>
+                <select name="skill_relations[${skillOrder}]">
+                    <option value="and">＋（AND）</option>
+                    <option value="or">or（OR）</option>
+                </select>
+            </div>
+        ` : `
+            <div class="skill-relation-info">
+                <small class="text-muted">最初のスキル</small>
+            </div>
+        `;
+        
+        // テキストクラスの判定
+        let textClass = '';
+        if (skillType === 'レアスキル') textClass = 'text-rare';
+        else if (skillType === '進化スキル') textClass = 'text-evolution';
+        else if (skillType === '固有スキル') textClass = 'text-rainbow';
+        
+        // 選択済みスキルに追加
+        const newSkillDiv = document.createElement('div');
+        newSkillDiv.className = 'selected-skill-item';
+        newSkillDiv.dataset.skillId = skillId;
+        newSkillDiv.innerHTML = `
+            <input type="hidden" name="skill_ids[]" value="${skillId}">
+            <div class="skill-info">
+                <span class="${textClass}">${skillName}</span>
+                <small>${skillType}</small>
+            </div>
+            ${relationHtml}
+            <button type="button" class="remove-skill-btn" onclick="removeSkill(${skillId})">×</button>
+        `;
+        
+        selectedSkills.appendChild(newSkillDiv);
+        
+        // 「スキルが登録されていません」メッセージを非表示
+        const noSkillsMessage = document.querySelector('.no-skills-message');
+        if (noSkillsMessage) {
+            noSkillsMessage.style.display = 'none';
+        }
+        
+        // ドラッグ&ドロップ機能を追加
+        makeDraggable(newSkillDiv);
+        
+        // リストから非表示にして、選択済みマークを付ける
+        if (skillItem) {
+            skillItem.style.display = 'none';
+            skillItem.setAttribute('data-skill-selected', 'true');
+        }
+        
+        skillOrder++;
+    };
+
+    // スキル削除
+    window.removeSkill = function(skillId) {
+        const selectedSkill = document.querySelector(`.selected-skill-item[data-skill-id="${skillId}"]`);
+        const skillItem = document.querySelector(`li[data-skill-id="${skillId}"]`);
+        
+        if (selectedSkill) {
+            selectedSkill.remove();
+        }
+        
+        if (skillItem) {
+            skillItem.style.display = 'block';
+            skillItem.removeAttribute('data-skill-selected');
+        }
+        
+        // 順序を再計算
+        reorderSkills();
+        
+        // スキルがなくなった場合にメッセージを再表示
+        const remainingSkills = document.querySelectorAll('.selected-skill-item');
+        const noSkillsMessage = document.querySelector('.no-skills-message');
+        if (remainingSkills.length === 0 && noSkillsMessage) {
+            noSkillsMessage.style.display = 'block';
+        }
+    };
+
+    // スキル順序の再計算
+    function reorderSkills() {
+        const selectedSkills = document.querySelectorAll('.selected-skill-item');
+        skillOrder = selectedSkills.length;
+        
+        selectedSkills.forEach((skill, index) => {
+            const hiddenInput = skill.querySelector('input[name="skill_ids[]"]');
+            const relationContainer = skill.querySelector('.skill-relation-selector, .skill-relation-info');
+            
+            if (index === 0) {
+                // 最初のスキルは関係性セレクタを情報に変更
+                if (relationContainer && relationContainer.classList.contains('skill-relation-selector')) {
+                    relationContainer.outerHTML = `
+                        <div class="skill-relation-info">
+                            <small class="text-muted">最初のスキル</small>
+                        </div>
+                    `;
                 }
-            });
-        }
-        filterType.addEventListener('change', filterSkills);
-        filterDistance.addEventListener('change', filterSkills);
-        filterStrategy.addEventListener('change', filterSkills);
-
-        // --- 画像プレビューと枠色変更の機能 ---
-        const raritySelect = document.getElementById('rarity_select');
-        const previewWrapper = document.getElementById('image-preview-wrapper');
-        const fileInput = document.getElementById('card_image');
-        const imagePreview = document.getElementById('image_preview');
-
-        function updateBorderColor() {
-            const selectedRarity = raritySelect.value.toLowerCase();
-            previewWrapper.classList.remove('rarity-ssr', 'rarity-sr', 'rarity-r');
-            if (selectedRarity) {
-                previewWrapper.classList.add('rarity-' + selectedRarity);
+            } else {
+                // 2番目以降は関係性セレクタを表示
+                if (relationContainer && relationContainer.classList.contains('skill-relation-info')) {
+                    relationContainer.outerHTML = `
+                        <div class="skill-relation-selector">
+                            <label>関係性:</label>
+                            <select name="skill_relations[${index}]">
+                                <option value="and">＋（AND）</option>
+                                <option value="or">or（OR）</option>
+                            </select>
+                        </div>
+                    `;
+                } else if (relationContainer) {
+                    const select = relationContainer.querySelector('select');
+                    if (select) {
+                        select.name = `skill_relations[${index}]`;
+                    }
+                }
             }
+        });
+    }
+
+    // ドラッグ&ドロップ機能
+    function makeDraggable(element) {
+        element.setAttribute('draggable', 'true');
+        
+        element.addEventListener('dragstart', function(e) {
+            e.dataTransfer.setData('text/plain', '');
+            element.classList.add('dragging');
+        });
+        
+        element.addEventListener('dragend', function(e) {
+            element.classList.remove('dragging');
+        });
+        
+        element.addEventListener('dragover', function(e) {
+            e.preventDefault();
+        });
+        
+        element.addEventListener('drop', function(e) {
+            e.preventDefault();
+            const dragging = document.querySelector('.dragging');
+            const container = document.getElementById('selected-skills');
+            
+            if (dragging && dragging !== element) {
+                const allItems = [...container.children];
+                const draggingIndex = allItems.indexOf(dragging);
+                const targetIndex = allItems.indexOf(element);
+                
+                if (draggingIndex < targetIndex) {
+                    container.insertBefore(dragging, element.nextSibling);
+                } else {
+                    container.insertBefore(dragging, element);
+                }
+                
+                reorderSkills();
+            }
+        });
+    }
+
+    // --- スキル絞り込み機能 ---
+    const filterType = document.getElementById('skill_filter_type');
+    const filterDistance = document.getElementById('skill_filter_distance');
+    const filterStrategy = document.getElementById('skill_filter_strategy');
+    const skillItems = document.querySelectorAll('#skill-list-container li');
+
+    function filterSkills() {
+        const type = filterType.value;
+        const distance = filterDistance.value;
+        const strategy = filterStrategy.value;
+
+        console.log('フィルタ条件:', { type, distance, strategy });
+        let visibleCount = 0;
+
+        skillItems.forEach(function(item) {
+            const itemType = item.getAttribute('data-type');
+            const itemDistance = item.getAttribute('data-distance');
+            const itemStrategy = item.getAttribute('data-strategy');
+            
+            // 既に選択済みのスキルかどうかをチェック
+            const isAlreadySelected = item.style.display === 'none' && item.hasAttribute('data-skill-selected');
+
+            // 選択済みスキルはそのまま非表示を維持
+            if (isAlreadySelected) {
+                return;
+            }
+
+            // フィルタ条件のマッチング
+            const typeMatch = !type || itemType === type;
+            const distanceMatch = !distance || itemDistance === distance || itemDistance === '' || itemDistance === null;
+            const strategyMatch = !strategy || itemStrategy === strategy || itemStrategy === '' || itemStrategy === null;
+
+            console.log('スキル:', item.querySelector('.add-skill-btn span')?.textContent, {
+                itemType, itemDistance, itemStrategy,
+                typeMatch, distanceMatch, strategyMatch
+            });
+
+            if (typeMatch && distanceMatch && strategyMatch) {
+                item.style.display = 'block';
+                visibleCount++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        console.log('表示されているスキル数:', visibleCount);
+    }
+
+    filterType.addEventListener('change', filterSkills);
+    filterDistance.addEventListener('change', filterSkills);
+    filterStrategy.addEventListener('change', filterSkills);
+
+    // 初期表示時にもフィルタを実行（デバッグのため）
+    console.log('初期化時のスキル要素数:', skillItems.length);
+    skillItems.forEach((item, index) => {
+        console.log(`スキル${index}:`, {
+            name: item.querySelector('.add-skill-btn span')?.textContent,
+            type: item.getAttribute('data-type'),
+            distance: item.getAttribute('data-distance'),
+            strategy: item.getAttribute('data-strategy'),
+            display: item.style.display,
+            selected: item.hasAttribute('data-skill-selected')
+        });
+    });
+
+    // --- 画像プレビューと枠色変更の機能 ---
+    const raritySelect = document.getElementById('rarity_select');
+    const previewWrapper = document.getElementById('image-preview-wrapper');
+    const fileInput = document.getElementById('card_image');
+    const imagePreview = document.getElementById('image_preview');
+
+    function updateBorderColor() {
+        const selectedRarity = raritySelect.value.toLowerCase();
+        previewWrapper.classList.remove('rarity-ssr', 'rarity-sr', 'rarity-r');
+        if (selectedRarity) {
+            previewWrapper.classList.add('rarity-' + selectedRarity);
         }
+    }
+    
+    if (fileInput) {
         fileInput.addEventListener('change', function() {
             if (this.files && this.files[0]) {
                 const file = this.files[0];
                 imagePreview.src = URL.createObjectURL(file);
             }
         });
+    }
+    
+    if (raritySelect) {
         raritySelect.addEventListener('change', updateBorderColor);
         updateBorderColor();
-
-        // --- スキルリストのクリック・選択機能 ---
-        const skillListContainer = document.getElementById('skill-list-container');
-        const allSkillCheckboxes = skillListContainer.querySelectorAll('input[type="checkbox"]');
-
-        // チェックボックスの状態が変わった時に背景色を切り替える
-        allSkillCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-                const li = this.closest('li');
-                if (li) {
-                    li.classList.toggle('selected', this.checked);
-                }
-            });
-        });
-
-        // ★★★ ページ読み込み時に、既にチェックされている項目に背景色を適用 ★★★
-        allSkillCheckboxes.forEach(function(checkbox) {
-            if (checkbox.checked) {
-                checkbox.closest('li').classList.add('selected');
-            }
-        });
-    });
+    }
+});
 </script>
+
+
+</script>
+
+<style>
+.selected-skills-section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.selected-skills-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 15px;
+    min-height: 60px;
+}
+
+.no-skills-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    background: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.no-skills-message p {
+    margin: 0 0 5px 0;
+    font-size: 1.1em;
+    color: #6c757d;
+}
+
+.no-skills-message small {
+    color: #6c757d;
+    font-style: italic;
+}
+
+.selected-skill-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px 16px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    cursor: move;
+    transition: background-color 0.2s, box-shadow 0.2s;
+    position: relative;
+}
+
+.selected-skill-item:hover {
+    background: #f8f9fa;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.selected-skill-item.dragging {
+    opacity: 0.5;
+    transform: rotate(5deg);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.selected-skill-item::before {
+    content: '⋮⋮';
+    position: absolute;
+    left: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #999;
+    font-size: 12px;
+    line-height: 1;
+    letter-spacing: -2px;
+}
+
+.skill-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.skill-info small {
+    color: #666;
+    font-size: 0.8em;
+}
+
+.skill-relation-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.skill-relation-selector label {
+    font-size: 0.9em;
+    color: #666;
+    margin: 0;
+}
+
+.skill-relation-selector select {
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.skill-relation-info {
+    display: flex;
+    align-items: center;
+}
+
+.text-muted {
+    color: #888;
+    font-style: italic;
+}
+
+.remove-skill-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.remove-skill-btn:hover {
+    background: #c82333;
+}
+
+.add-skill-btn {
+    width: 100%;
+    padding: 10px 12px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.2s;
+}
+
+.add-skill-btn:hover {
+    background: #e9ecef;
+}
+
+.add-skill-btn small {
+    display: block;
+    color: #666;
+    font-size: 0.8em;
+    margin-top: 2px;
+}
+
+.skill-selection-section {
+    border-top: 1px solid #ddd;
+    padding-top: 20px;
+    margin-top: 20px;
+}
+
+.skill-selection-section h3 {
+    margin-bottom: 15px;
+    color: #444;
+}
+
+.skill-filter-form {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.skill-filter-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 150px;
+}
+
+.skill-filter-form label {
+    font-weight: bold;
+    color: #495057;
+    font-size: 0.9em;
+}
+
+.skill-filter-form select {
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background-color: white;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.skill-filter-form select:focus {
+    outline: none;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.skill-list-wrapper {
+    margin-top: 15px;
+}
+
+.skill-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.skill-list.grid-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 10px;
+}
+
+.skill-list li {
+    margin: 0;
+    padding: 0;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    .skill-filter-form {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .skill-filter-form .form-group {
+        min-width: auto;
+    }
+    
+    .skill-list.grid-layout {
+        grid-template-columns: 1fr;
+    }
+    
+    .selected-skills-list {
+        gap: 8px;
+    }
+    
+    .selected-skill-item {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .selected-skill-item::before {
+        display: none;
+    }
+}
+
+/* 選択済みスキル用のスペース調整 */
+.selected-skill-item .skill-info {
+    margin-left: 15px;
+}
+</style>
 
 <?php include '../templates/footer.php'; ?>

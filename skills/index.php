@@ -45,7 +45,7 @@ require_once __DIR__ . '/../templates/header.php'; // 共通ヘッダーを読�
             <div class="page-actions">
                 <a href="add.php" class="add-link">新しいスキルを追加する</a>
             </div>
-            <div style="display: flex; align-items: center; gap: 15px;">
+            <div  class="bottom-controls" style="display: flex; align-items: center; gap: 15px;">
                 <button type="button" id="open-advanced-filter" class="action-button button-edit">詳細絞り込み</button>
                 <div class="active-filters-container" id="active-filters-container"></div>
             </div>

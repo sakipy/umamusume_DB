@@ -72,6 +72,15 @@ $conn->close();
                     <span class="menu-item-text"><?php echo htmlspecialchars($item['title']); ?></span>
                 </a>
             <?php endforeach; ?>
+            <!-- スキル相性診断ページへのリンク（統一デザイン） -->
+            <?php
+                $skill_analyzer_img_path = 'uploads/homepage/skill_analyzer.png';
+                $skill_analyzer_img_url = file_exists($skill_analyzer_img_path) ? $skill_analyzer_img_path : 'https://cdn.jsdelivr.net/gh/sakipy/umamusume_DB@main/public/skill_analyze_icon.png';
+            ?>
+            <a href="tools/skill_analyzer.php" class="menu-item">
+                <img src="<?php echo $skill_analyzer_img_url; ?>" alt="スキル相性診断" class="menu-item-image">
+                <span class="menu-item-text">スキル相性診断</span>
+            </a>
         </div>
     </div>
 

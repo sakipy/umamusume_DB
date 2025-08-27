@@ -50,11 +50,11 @@ $stmt_effects->close();
 // --- 3. 所持スキル情報を取得 ---
 $owned_skills = [];
 $stmt_skills = $conn->prepare("
-    SELECT s.skill_name, s.skill_description, s.skill_type
+    SELECT s.skill_name, s.skill_description, s.skill_type, scs.skill_relation, scs.skill_order
     FROM skills s
     INNER JOIN support_card_skills scs ON s.id = scs.skill_id
     WHERE scs.support_card_id = ?
-    ORDER BY s.id
+    ORDER BY scs.skill_order ASC, s.id ASC
 ");
 $stmt_skills->bind_param("i", $card_id);
 $stmt_skills->execute();
@@ -95,6 +95,100 @@ $effect_labels = [
         font-size: 0.9em;
         color: #666;
         padding-top: 4px;
+    }
+    
+    .skill-relation {
+        text-align: center;
+        width: 80px;
+    }
+    
+    .relation-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 14px;
+        color: white;
+        min-width: 30px;
+        text-align: center;
+    }
+    
+    .relation-badge.and {
+        background-color: #28a745;
+    }
+    
+    .relation-badge.or {
+        background-color: #dc3545;
+    }
+
+    .skills-display {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        margin-top: 15px;
+    }
+
+    .skill-connector {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 8px 0;
+        position: relative;
+    }
+
+    .skill-connector::before,
+    .skill-connector::after {
+        content: '';
+        position: absolute;
+        width: 2px;
+        height: 20px;
+        background-color: #ddd;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    .skill-connector::before {
+        top: -20px;
+    }
+
+    .skill-connector::after {
+        bottom: -20px;
+    }
+
+    .skill-item {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 16px;
+        margin: 0 20px;
+        position: relative;
+    }
+
+    .skill-name-container {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+
+    .skill-name {
+        font-size: 1.1em;
+        font-weight: bold;
+    }
+
+    .skill-type-badge {
+        background: #6c757d;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        white-space: nowrap;
+    }
+
+    .skill-description {
+        font-size: 0.9em;
+        color: #666;
+        line-height: 1.4;
     }
 </style>
 
@@ -140,26 +234,39 @@ $effect_labels = [
         <div class="skill-section">
             <h2 class="section-title">所持スキル</h2>
             <?php if (!empty($owned_skills)): ?>
-                <table class="skill-table">
-                    <thead><tr><th>スキル情報</th><th>タイプ</th></tr></thead>
-                    <tbody>
-                        <?php foreach ($owned_skills as $skill): ?>
-                            <?php
-                                $row_class = ''; $name_class = '';
-                                if ($skill['skill_type'] == 'レアスキル') { $row_class = 'type-rare'; $name_class = 'text-rare'; } 
-                                elseif ($skill['skill_type'] == '進化スキル') { $row_class = 'type-evolution'; $name_class = 'text-evolution'; }
-                                elseif ($skill['skill_type'] == '固有スキル') { $row_class = 'type-unique'; $name_class = 'text-rainbow'; }
-                            ?>
-                            <tr class="<?php echo $row_class; ?>">
-                                <td>
-                                    <div class="<?php echo $name_class; ?>"><?php echo htmlspecialchars($skill['skill_name']); ?></div>
-                                    <div class="skill-description"><?php echo nl2br(htmlspecialchars($skill['skill_description'])); ?></div>
-                                </td>
-                                <td><?php echo htmlspecialchars($skill['skill_type']); ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <div class="skills-display">
+                    <?php 
+                    foreach ($owned_skills as $index => $skill): 
+                        $name_class = '';
+                        if ($skill['skill_type'] == 'レアスキル') { $name_class = 'text-rare'; } 
+                        elseif ($skill['skill_type'] == '進化スキル') { $name_class = 'text-evolution'; }
+                        elseif ($skill['skill_type'] == '固有スキル') { $name_class = 'text-rainbow'; }
+                        
+                        // スキル関係の表示判定
+                        if ($index > 0) {
+                            $relation = $skill['skill_relation'] ?? 'and';
+                            $relation_class = $relation;
+                            $relation_text = ($relation === 'and') ? '＋' : 'or';
+                            echo '<div class="skill-connector">';
+                            echo '<span class="relation-badge ' . $relation_class . '">' . htmlspecialchars($relation_text) . '</span>';
+                            echo '</div>';
+                        }
+                    ?>
+                        <div class="skill-item">
+                            <div class="skill-name-container">
+                                <div class="skill-name <?php echo $name_class; ?>">
+                                    <?php echo htmlspecialchars($skill['skill_name']); ?>
+                                </div>
+                                <div class="skill-type-badge">
+                                    <?php echo htmlspecialchars($skill['skill_type']); ?>
+                                </div>
+                            </div>
+                            <div class="skill-description">
+                                <?php echo nl2br(htmlspecialchars($skill['skill_description'])); ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             <?php else: ?>
                 <p>このカードに登録されているスキルはありません。</p>
             <?php endif; ?>

@@ -109,6 +109,7 @@ $conn->close();
             <div class="top-controls">
                 <div class="page-actions">
                     <a href="add_card.php" class="add-link">新しいカードを追加する</a>
+                    <a href="scrape_all.php" class="add-link" style="background-color: #e74c3c; border-color: #c0392b;">未登録データを一括インポート</a>
                 </div>
                 <div class="view-options">
                     <button type="button" id="sc-view-mode-default" class="view-mode-btn active">名前あり</button>

@@ -16,8 +16,19 @@ $conn->set_charset("utf8mb4");
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $item_id = (int)($_POST['item_id'] ?? 0);
     $current_image_url = $_POST['current_image_url'] ?? '';
+    $is_skill_analyzer = isset($_POST['skill_analyzer_image']);
 
-    if ($item_id > 0 && isset($_FILES['new_image']) && $_FILES['new_image']['error'] == 0) {
+    if ($is_skill_analyzer && isset($_FILES['new_image']) && $_FILES['new_image']['error'] == 0) {
+        // スキル相性診断画像のアップロード処理
+        $upload_dir = '../uploads/homepage/';
+        if (!file_exists($upload_dir)) { mkdir($upload_dir, 0777, true); }
+        $target_file = $upload_dir . 'skill_analyzer.png';
+        if (move_uploaded_file($_FILES['new_image']['tmp_name'], $target_file)) {
+            $message = "スキル相性診断の画像を更新しました。";
+        } else {
+            $error_message = "ファイルのアップロードに失敗しました。";
+        }
+    } else if ($item_id > 0 && isset($_FILES['new_image']) && $_FILES['new_image']['error'] == 0) {
         $upload_dir = '../uploads/homepage/';
         if (!file_exists($upload_dir)) { mkdir($upload_dir, 0777, true); }
         $file_name = time() . '_' . basename($_FILES['new_image']['name']);
@@ -87,6 +98,23 @@ include '../templates/header.php';
                 </form>
             </div>
         <?php endforeach; ?>
+        <!-- スキル相性診断画像の管理カード -->
+        <div class="setting-item-card">
+            <h3>スキル相性診断</h3>
+            <div class="current-image-preview">
+                <?php $skill_analyzer_img = '../uploads/homepage/skill_analyzer.png'; ?>
+                <?php if (file_exists($skill_analyzer_img)): ?>
+                    <img src="<?php echo $skill_analyzer_img; ?>" alt="スキル相性診断画像">
+                <?php else: ?>
+                    <div class="no-image">画像なし</div>
+                <?php endif; ?>
+            </div>
+            <form action="index.php" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="skill_analyzer_image" value="1">
+                <input type="file" name="new_image" required class="file-upload-input" id="file_skill_analyzer" onchange="this.form.submit()">
+                <label for="file_skill_analyzer" class="file-upload-label">画像を変更...</label>
+            </form>
+        </div>
     </div>
 </div>
 
